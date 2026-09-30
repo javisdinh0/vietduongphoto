@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { buildLibrary, mergeDelta, signature, applyFilters, groupMonths, parseHash, parseTaken, thumbAt } from '../public/vietduongphoto/lib.js';
