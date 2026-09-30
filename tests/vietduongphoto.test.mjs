@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
-import { buildLibrary, mergeDelta, signature, applyFilters, groupMonths, parseHash, parseTaken, thumbAt } from '../public/vietduongphoto/lib.js';
+import { buildLibrary, mergeDelta, parseBatch, buildBatch, signature, applyFilters, groupMonths, parseHash, parseTaken, thumbAt } from '../public/vietduongphoto/lib.js';
 import { crc32, makeZip, ZipStream } from '../public/vietduongphoto/zip.js';
+import proxy from '../backend/vietduongphoto-proxy/worker.js';
 
 const raw = () => ({
   folders: [{ id: 'r', name: '', parent: null }, { id: 'a', name: 'A', parent: 'r' }, { id: 'b', name: 'B', parent: 'a' }],
@@ -76,3 +77,29 @@ test('makeZip', async () => {
   assert.equal(b.readUInt32LE(0), 0x04034b50); assert.equal(b.readUInt16LE(b.length - 22 + 10), 1);
 });
 
+
+test('parseBatch / buildBatch', () => {
+  const b = buildBatch(['a', 'b'], 'B1');
+  assert.match(b, /Content-ID: <item0>/); assert.match(b, /GET \/drive\/v3\/files\/b\?fields=thumbnailLink/); assert.ok(b.trim().endsWith('--B1--'));
+  const resp = '--RB\r\nContent-Type: application/http\r\nContent-ID: <response-item0>\r\n\r\nHTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{"thumbnailLink":"https://x/a=s220"}\r\n' +
+    '--RB\r\nContent-Type: application/http\r\nContent-ID: <response-item1>\r\n\r\nHTTP/1.1 404 Not Found\r\n\r\n{"error":{}}\r\n--RB--';
+  assert.deepEqual(parseBatch(resp, 'multipart/mixed; boundary=RB', ['a', 'b']), { a: 'https://x/a=s220' });
+});
+
+test('proxy worker: yêu cầu token, chặn path lạ, chuyển tiếp + cache metadata', async () => {
+  const calls = []; const store = new Map();
+  globalThis.caches = { default: { match: async (k) => store.get(k.url)?.clone(), put: async (k, r) => { store.set(k.url, r); } } };
+  globalThis.fetch = async (u, init) => { calls.push([u, init.headers.Authorization]); return new Response('{"files":[]}', { status: 200 }); };
+  const ctx = { waitUntil: (p) => p };
+  const mk = (path, headers = {}, method = 'GET') => new Request('https://p.example' + path, { method, headers });
+  assert.equal((await proxy.fetch(mk('/drive/v3/files'), {}, ctx)).status, 401);
+  assert.equal((await proxy.fetch(mk('/drive/v2/about', { Authorization: 'Bearer t' }), {}, ctx)).status, 404);
+  const r1 = await proxy.fetch(mk('/drive/v3/files?q=x', { Authorization: 'Bearer t' }), {}, ctx);
+  assert.equal(r1.status, 200); assert.equal(r1.headers.get('Access-Control-Allow-Origin'), 'https://ividlab.com');
+  await proxy.fetch(mk('/drive/v3/files?q=x', { Authorization: 'Bearer t' }), {}, ctx); // lần 2 từ cache
+  assert.equal(calls.length, 1);
+  await proxy.fetch(mk('/drive/v3/files?q=x', { Authorization: 'Bearer OTHER' }), {}, ctx); // token khác không dùng chung cache
+  assert.equal(calls.length, 2); assert.equal(calls[1][1], 'Bearer OTHER');
+  await proxy.fetch(mk('/drive/v3/files/abc?alt=media', { Authorization: 'Bearer t' }), {}, ctx); await proxy.fetch(mk('/drive/v3/files/abc?alt=media', { Authorization: 'Bearer t' }), {}, ctx);
+  assert.equal(calls.length, 4); // alt=media không cache
+});

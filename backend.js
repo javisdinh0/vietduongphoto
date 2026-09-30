@@ -1,6 +1,6 @@
 // Backend cho VietDuong Photo: Google Drive (đọc), Firestore (album ảo + yêu cầu truy cập),
 // và chế độ demo (?demo=1) dùng dữ liệu giả sinh trong trình duyệt để test không cần đăng nhập.
-import { mergeDelta } from './lib.js';
+import { mergeDelta, buildBatch, parseBatch } from './lib.js';
 const FB_VER = '10.12.5';
 const FB_CONFIG = {
   apiKey: 'AIzaSyB8-vSVDKhOLuTA6xmYZzwHVrWX58eT3d4',
@@ -33,12 +33,13 @@ async function retryFetch(url, opts, tries = 5) {
   }
 }
 
-export function createDrive(getToken, apiKey) {
+export function createDrive(getToken, apiKey, base = 'https://www.googleapis.com') {
+  base = base.replace(/\/+$/, '');
   const auth = () => ({ headers: { Authorization: 'Bearer ' + getToken() } });
   async function list(q, fields) {
     const out = []; let pt = '';
     do {
-      let url = 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) +
+      let url = base + '/drive/v3/files?q=' + encodeURIComponent(q) +
         '&fields=' + encodeURIComponent(fields) + '&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true';
       if (apiKey) url += '&key=' + encodeURIComponent(apiKey);
       if (pt) url += '&pageToken=' + encodeURIComponent(pt);
@@ -85,9 +86,10 @@ export function createDrive(getToken, apiKey) {
 
   return {
     // Tải đầy đủ. Trả thêm syncedAt để lần sau chỉ lấy phần thay đổi.
-    async loadAll(rootId, onProgress) {
+    async loadAll(rootId, onProgress, onTree) {
       const syncedAt = Date.now() - 60000;
       const folders = await loadFolders(rootId, onProgress);
+      onTree && onTree(folders);
       const files = await listFiles(folders.map((f) => f.id), notFolder + ' and trashed=false', LIST_FIELDS, onProgress, folders.length);
       return { folders, files, syncedAt };
     },
@@ -106,21 +108,36 @@ export function createDrive(getToken, apiKey) {
     },
     // EXIF đầy đủ, lấy khi mở lightbox (danh sách chỉ lấy width/height/time cho nhẹ).
     async meta(id) {
-      const r = await retryFetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=${encodeURIComponent('imageMediaMetadata,size')}&supportsAllDrives=true`, auth());
+      const r = await retryFetch(`${base}/drive/v3/files/${id}?fields=${encodeURIComponent('imageMediaMetadata,size')}&supportsAllDrives=true`, auth());
       return r.ok ? r.json() : null;
     },
     // Link thumbnail mới (link cũ hết hạn sau vài giờ).
     async thumb(id) {
-      const r = await retryFetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=thumbnailLink&supportsAllDrives=true`, auth());
+      const r = await retryFetch(`${base}/drive/v3/files/${id}?fields=thumbnailLink&supportsAllDrives=true`, auth());
       return r.ok ? (await r.json()).thumbnailLink || null : null;
     },
+    // Gộp nhiều files.get thumbnailLink vào 1 request batch (tối đa 50). Lỗi/không hỗ trợ → tự rơi về từng request.
+    async thumbs(ids) {
+      const out = {};
+      for (const grp of chunks(ids, 50)) {
+        let got = null;
+        try {
+          const boundary = 'vdbatch' + Math.random().toString(36).slice(2);
+          const r = await retryFetch(`${base}/batch/drive/v3`, { method: 'POST', headers: { Authorization: 'Bearer ' + getToken(), 'Content-Type': `multipart/mixed; boundary=${boundary}` }, body: buildBatch(grp, boundary) });
+          if (r.ok) got = parseBatch(await r.text(), r.headers.get('Content-Type'), grp);
+        } catch (e) { got = null; }
+        if (got) Object.assign(out, got);
+        for (const id of grp) if (!(id in out)) { try { const l = await this.thumb(id); if (l) out[id] = l; } catch (e) { /* bỏ qua */ } }
+      }
+      return out;
+    },
     async stream(item) {
-      const r = await retryFetch(`https://www.googleapis.com/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, auth());
+      const r = await retryFetch(`${base}/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, auth());
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.body;
     },
     async blob(item) {
-      const r = await retryFetch(`https://www.googleapis.com/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, auth());
+      const r = await retryFetch(`${base}/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, auth());
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.blob();
     },
@@ -210,8 +227,8 @@ export function createDemo(guest) {
   ];
   const files = [];
   const sizes = [[1600, 1067], [1067, 1600], [1600, 900], [1200, 1200], [1600, 1067], [900, 1600]];
-  const add = (parent, prefix, n, y, m, hue0) => {
-    for (let i = 0; i < n; i++) {
+  const add = (parent, prefix, n, y, m, hue0, start = 0) => {
+    for (let i = start; i < start + n; i++) {
       const [w, h] = sizes[i % sizes.length];
       const name = `${prefix}_${String(i + 1).padStart(3, '0')}`;
       const uri = svgUri(w, h, (hue0 + i * 23) % 360, name);
@@ -230,6 +247,8 @@ export function createDemo(guest) {
   add('f-hoian', 'HOIAN', 6, 2024, 7, 140);
   add('f-pho', 'PHO', 5, 2024, 7, 300);
   add('f-locked', 'LOCK', 2, 2024, 1, 0);
+  const many = +new URLSearchParams(location.search).get('many') || 0; // test: thêm N ảnh để thử virtual recycling
+  if (many) add('f-dalat', 'BULK', many, 2023, 5, 60, 1000);
 
   const LS = (k, v) => { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } };
   const albums = () => LS('vdphoto_demo_albums') || [];
@@ -237,12 +256,17 @@ export function createDemo(guest) {
   return {
     demo: true,
     drive: {
-      async loadAll() {
-        return { folders: folders.filter((f) => guest ? f.id !== 'f-locked' : true), files: files.filter((f) => guest ? f.parents[0] !== 'f-locked' : true), syncedAt: Date.now() };
+      async loadAll(rootId, onProgress, onTree) {
+        const r = { folders: folders.filter((f) => guest ? f.id !== 'f-locked' : true), files: files.filter((f) => guest ? f.parents[0] !== 'f-locked' : true), syncedAt: Date.now() };
+        onTree && onTree(r.folders);
+        const slow = +new URLSearchParams(location.search).get('slow') || 0;
+        if (slow) await new Promise((res) => setTimeout(res, slow)); // test: giữ khoảng trống giữa cây thư mục và file
+        return r;
       },
       async refresh() { return this.loadAll(); },
       async meta() { return null; },
       async thumb() { return null; },
+      async thumbs() { return {}; },
       async stream(item) { return (await fetch(item.dl)).body; },
       async userEmail() { return guest ? 'khach@example.com' : ADMIN_FALLBACK; },
       async blob(item) { return (await fetch(item.dl)).blob(); },

@@ -104,3 +104,20 @@ export function parseHash(hash) {
   if (a === 'p' && b) return { type: 'photo', id: decodeURIComponent(b) };
   return { type: 'home' };
 }
+
+// Drive batch (multipart/mixed): gộp nhiều files.get thumbnailLink vào 1 request.
+export function buildBatch(ids, boundary) {
+  return ids.map((id, i) => `--${boundary}\r\nContent-Type: application/http\r\nContent-ID: <item${i}>\r\n\r\n` +
+    `GET /drive/v3/files/${id}?fields=thumbnailLink&supportsAllDrives=true\r\n\r\n`).join('') + `--${boundary}--`;
+}
+export function parseBatch(text, contentType, ids) {
+  const m = /boundary=("?)([^";]+)\1/.exec(contentType || ''); const out = {};
+  if (!m) return out;
+  text.split('--' + m[2]).forEach((part) => {
+    const c = /Content-ID:\s*<response-item(\d+)>/i.exec(part); if (!c) return;
+    if (!/HTTP\/1\.1 200/.test(part)) return;
+    const j = /(\{[\s\S]*\})\s*$/.exec(part.trim()); if (!j) return;
+    try { const link = JSON.parse(j[1]).thumbnailLink; if (link) out[ids[+c[1]]] = link; } catch (e) { /* bỏ qua */ }
+  });
+  return out;
+}

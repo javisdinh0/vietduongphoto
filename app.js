@@ -1,6 +1,6 @@
 import { createDrive, createStore, createDemo, ADMIN_FALLBACK } from './backend.js';
 import { buildLibrary, applyFilters as filterList, groupMonths, parseHash, thumbAt, signature } from './lib.js';
-import { makeZip, ZipStream } from './zip.js';
+import { zipToBlob, zipToWritable } from './zipclient.js';
 
 // ============================ Cấu hình mặc định ============================
 const DEFAULT_CLIENT_ID = '110344757733-bnomi4d63vsrb144pt5qpss8246supmd.apps.googleusercontent.com';
@@ -90,11 +90,12 @@ const S = {
   filters: { q: '', year: '', raw: false, fav: false },
   visible: [], selectMode: false, selected: new Set(), route: { type: 'home' },
   favs: new Set(JSON.parse(lsGet('vdphoto_fav', '[]') || '[]')),
-  loaded: false,
+  loaded: false, partial: false, justified: lsGet('vdphoto_layout') === 'justified',
 };
 let clientId = lsGet('vd_photo_client_id') || DEFAULT_CLIENT_ID;
 let folderId = lsGet('vd_photo_folder_id') || DEFAULT_FOLDER_ID;
 let apiKey = lsGet('vd_photo_api_key') || '';
+let proxyUrl = lsGet('vd_photo_proxy') || '';
 let tokenClient = null;
 let refreshTimer = null;
 
@@ -124,11 +125,13 @@ async function loadLibrary(force) {
   if (usable) { await render(cached.raw, true); shown = true; show($('#loader'), false); } else { show($('#loader')); $('#loaderText').textContent = t('openDrive'); show($('#app'), false); }
   try {
     if (usable && Date.now() - cached.t < CACHE_TTL) return; // cache còn mới
+    // Lần đầu (chưa có cache): hiện danh sách album ngay khi có cây thư mục, số ảnh/ảnh bìa điền sau khi tải xong file.
+    const onTree = (folders) => { if (shown) return; S.partial = true; applyRaw({ folders, files: [] }); S.loaded = true; show($('#loader'), false); show($('#app')); route(); };
     const progress = (nf, nfile) => { if (!shown) $('#loaderText').textContent = `${t('loading')} ${nf} / ${nfile}`; };
     const canDelta = usable && cached.raw.syncedAt && Date.now() - (cached.full || 0) < FULL_REFRESH;
-    const raw = canDelta ? await S.backend.drive.refresh(folderId, cached.raw, progress) : await S.backend.drive.loadAll(folderId, progress);
+    const raw = canDelta ? await S.backend.drive.refresh(folderId, cached.raw, progress) : await S.backend.drive.loadAll(folderId, progress, onTree);
     if (useCache) cset(key, { t: Date.now(), full: canDelta ? cached.full : Date.now(), email: S.email, raw });
-    if (!shown) await render(raw, true);
+    if (!shown) { S.partial = false; await render(raw, true); }
     else if (signature(raw) !== signature(cached.raw)) { await render(raw, false); toast(t('updated')); }
   } catch (err) { if (!shown || err.message === 'UNAUTH') showError(err); }
   finally { show($('#loader'), false); }
@@ -183,7 +186,7 @@ async function initAuth() {
     S.backend = createDemo(QS.get('guest') === '1');
     await onToken('demo', 3600); return;
   }
-  S.backend = { demo: false, drive: createDrive(() => S.token, apiKey), store: createStore() };
+  S.backend = { demo: false, drive: createDrive(() => S.token, apiKey, proxyUrl || undefined), store: createStore() };
   if (!clientId) { show($('#loginScreen'), false); show($('#errorMessage')); $('#errorText').textContent = 'Chưa cấu hình OAuth.'; show($('#settingsBtn')); return; }
   show($('#loginBtn'));
   await waitGoogle();
@@ -281,7 +284,7 @@ function renderAlbumGrid(container, cards, title) {
     const card = el('div', 'album-card' + (c.virtual ? ' album-virtual' : ''));
     const cover = el('div', 'album-cover');
     if (c.cover) { const img = el('img'); img.loading = 'lazy'; img.src = thumbAt(c.cover, 400); img.alt = c.name; cover.appendChild(img); } else cover.innerHTML = '<i class="fas fa-images"></i>';
-    const info = el('div', 'album-info'); info.appendChild(el('div', 'album-name', c.name)); info.appendChild(el('div', 'album-count', `${c.count} ${t('photos')}`));
+    const info = el('div', 'album-info'); info.appendChild(el('div', 'album-name', c.name)); info.appendChild(el('div', 'album-count', S.partial ? '…' : `${c.count} ${t('photos')}`));
     card.append(cover, info); card.addEventListener('click', () => { location.hash = c.href; });
     grid.appendChild(card);
   });
@@ -305,6 +308,7 @@ function renderPhotos(container, list) {
   S.visible = items;
   const tl = $('#timeline'); tl.innerHTML = '';
   if (spy) { spy.disconnect(); spy = null; }
+  newRecycler();
   if (!items.length) { container.appendChild(el('p', 'empty-state', t('empty'))); show(tl, false); return; }
   const { rows, months } = groupMonths(items, lang);
   const box = el('div', S.selectMode ? 'select-mode' : ''); box.id = 'photoBox'; container.appendChild(box);
@@ -322,7 +326,7 @@ function renderPhotos(container, list) {
     const end = Math.min(rows.length, pos + n);
     for (; pos < end; pos++) {
       const r = rows[pos];
-      if (r.h) { const h = el('h2', 'date-header', r.h.title); h.id = 'g-' + r.h.key; box.appendChild(h); spy.observe(h); grid = el('div', 'gallery'); box.appendChild(grid); }
+      if (r.h) { const h = el('h2', 'date-header', r.h.title); h.id = 'g-' + r.h.key; box.appendChild(h); spy.observe(h); grid = el('div', 'gallery' + (S.justified ? ' justified' : '')); box.appendChild(grid); }
       else grid.appendChild(photoCard(r.p));
     }
     if (pos >= rows.length) { io.disconnect(); sentinel.remove(); }
@@ -353,16 +357,30 @@ function setThumb(img, p) {
   if (p.tb) { img.srcset = [400, 800, 1200].map((w) => `${thumbAt(p, w)} ${w}w`).join(', '); img.sizes = SIZES; img.src = thumbAt(p, 600); }
   else img.src = thumbAt(p, 600);
 }
-function photoCard(p) {
-  const item = el('div', 'gallery-item' + (S.selected.has(p.id) ? ' selected' : '')); item.dataset.id = p.id;
-  if (p.w && p.h) item.style.aspectRatio = `${p.w} / ${p.h}`; else item.style.minHeight = '160px';
+// Xin link thumbnail mới cho ảnh lỗi: gom các yêu cầu trong 60ms thành 1 request batch.
+const renewQ = new Map(); let renewTimer = null;
+function renewThumb(p) {
+  return new Promise((res) => {
+    renewQ.set(p.id, [...(renewQ.get(p.id) || []), res]);
+    clearTimeout(renewTimer);
+    renewTimer = setTimeout(async () => {
+      const q = new Map(renewQ); renewQ.clear();
+      let links = {}; try { links = await S.backend.drive.thumbs([...q.keys()]); } catch (e) { /* bỏ qua */ }
+      q.forEach((cbs, id) => cbs.forEach((cb) => cb(links[id] || null)));
+    }, 60);
+  });
+}
+// Nội dung thẻ chỉ tồn tại khi thẻ ở gần màn hình; cuộn xa thì gỡ <img> & nút (giữ khung theo tỉ lệ) → DOM nhẹ dù hàng nghìn ảnh.
+function fillCard(item, p) {
+  if (item._filled) return; item._filled = true;
+  if (p.tb) item.style.backgroundImage = `url("${thumbAt(p, 32)}")`; // blur-up: ảnh 32px phóng lớn làm nền trong lúc ảnh chính tải
   const img = el('img'); img.loading = 'lazy'; img.alt = p.name; img.decoding = 'async';
   img.addEventListener('load', () => img.classList.add('ok'));
-  // Link thumbnail hết hạn → xin link mới 1 lần, không được thì mới rơi về link thường.
   img.addEventListener('error', async () => {
     if (!p._renewed) {
       p._renewed = true;
-      try { const link = await S.backend.drive.thumb(p.id); if (link && /=s\d+/.test(link)) { p.tb = link.replace(/=s\d+.*/, ''); img.removeAttribute('srcset'); setThumb(img, p); return; } } catch (e) { /* bỏ qua */ }
+      const link = await renewThumb(p);
+      if (link && /=s\d+/.test(link)) { p.tb = link.replace(/=s\d+.*/, ''); img.removeAttribute('srcset'); setThumb(img, p); return; }
     }
     const d = `https://drive.google.com/uc?id=${p.id}`;
     if (img.src !== d) { img.removeAttribute('srcset'); img.src = d; } else img.classList.add('ok');
@@ -374,8 +392,22 @@ function photoCard(p) {
   const fav = el('button', 'fav-btn' + (S.favs.has(p.id) ? ' on' : '')); fav.innerHTML = '<i class="fas fa-heart"></i>'; fav.title = t('fav');
   fav.addEventListener('click', (e) => { e.stopPropagation(); toggleFav(p.id); fav.classList.toggle('on', S.favs.has(p.id)); });
   item.appendChild(fav); item.appendChild(el('div', 'gallery-item-overlay', p.name));
+}
+function emptyCard(item) { item._filled = false; item.textContent = ''; item.style.backgroundImage = ''; }
+let recycler = null;
+function photoCard(p) {
+  const item = el('div', 'gallery-item' + (S.selected.has(p.id) ? ' selected' : '')); item.dataset.id = p.id;
+  const ar = p.w && p.h ? p.w / p.h : 1.5;
+  item.style.aspectRatio = `${ar}`; item.style.flex = `${Math.round(ar * 100)} 1 ${Math.round(ar * 200)}px`; // flex dùng cho chế độ lưới đều
+  item._p = p;
   item.addEventListener('click', () => { if (S.selectMode) { toggleSelect(p.id, item); } else openLightbox(p.id); });
+  fillCard(item, p);
+  if (recycler) recycler.observe(item);
   return item;
+}
+function newRecycler() {
+  if (recycler) recycler.disconnect();
+  recycler = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) fillCard(e.target, e.target._p); else emptyCard(e.target); }), { rootMargin: '2500px 0px' });
 }
 
 // ============================ Chế độ chọn ============================
@@ -393,6 +425,7 @@ function updateSelectBar() {
 // Không có: gom trong RAM (tải song song 3 luồng, tự thử lại khi lỗi mạng).
 async function withRetry(fn, tries = 3) { for (let i = 0; ; i++) { try { return await fn(); } catch (e) { if (i >= tries - 1) throw e; await new Promise((r) => setTimeout(r, 800 * (i + 1))); } } }
 const ZIP = { cancel: false };
+window.__zip = { zipToWritable, zipToBlob }; // phục vụ test
 function zipProgress(txt) { const b = $('#zipProg'); b.textContent = txt || ''; show(b, !!txt); show($('#zipCancel'), !!txt); }
 async function downloadZip() {
   const picks = [...S.selected].map((i) => S.byId.get(i)).filter(Boolean);
@@ -410,15 +443,9 @@ async function downloadZip() {
   const used = new Set(); const uniq = (n) => { let x = n; while (used.has(x)) x = '_' + x; used.add(x); return x; };
   try {
     if (handle) {
-      const w = await handle.createWritable(); const zs = new ZipStream(w);
-      try {
-        for (let i = 0; i < jobs.length; i++) {
-          zipProgress(`${t('zipping')} ${i + 1}/${jobs.length}`);
-          const body = await withRetry(() => S.backend.drive.stream(jobs[i].ref));
-          await zs.add(uniq(jobs[i].name), body, () => ZIP.cancel);
-        }
-        await zs.finish(); await w.close();
-      } catch (e) { try { await w.abort(); } catch (x) { /* bỏ qua */ } throw e; }
+      const w = await handle.createWritable();
+      await zipToWritable(w, jobs.map((j) => ({ name: uniq(j.name), open: () => withRetry(() => S.backend.drive.stream(j.ref)) })),
+        { shouldStop: () => ZIP.cancel, onProgress: (i, n) => zipProgress(`${t('zipping')} ${i}/${n}`) });
     } else {
       const entries = new Array(jobs.length); let next = 0; let done = 0;
       const worker = async () => {
@@ -432,7 +459,7 @@ async function downloadZip() {
       };
       await Promise.all([worker(), worker(), worker()]);
       entries.forEach((e) => { e.name = uniq(e.name); });
-      const url = URL.createObjectURL(makeZip(entries));
+      const url = URL.createObjectURL(await zipToBlob(entries));
       const a = el('a'); a.href = url; a.download = 'vietduong-photo.zip'; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
     }
@@ -538,7 +565,7 @@ function initLightbox() {
 
 // ============================ Cài đặt / yêu cầu truy cập ============================
 async function openSettings() {
-  $('#clientId').value = clientId; $('#apiKey').value = apiKey; $('#folderId').value = folderId;
+  $('#clientId').value = clientId; $('#apiKey').value = apiKey; $('#folderId').value = folderId; $('#proxyUrl').value = proxyUrl;
   const ul = $('#reqList'); ul.innerHTML = '';
   try {
     (await S.backend.store.listRequests()).forEach((em) => {
@@ -549,9 +576,9 @@ async function openSettings() {
   show($('#settingsModal'));
 }
 function saveSettings() {
-  clientId = $('#clientId').value.trim(); apiKey = $('#apiKey').value.trim(); folderId = $('#folderId').value.trim();
+  clientId = $('#clientId').value.trim(); apiKey = $('#apiKey').value.trim(); folderId = $('#folderId').value.trim(); proxyUrl = $('#proxyUrl').value.trim();
   const m = folderId.match(/folders\/([a-zA-Z0-9-_]+)/); if (m) folderId = m[1];
-  lsSet('vd_photo_client_id', clientId); lsSet('vd_photo_api_key', apiKey); lsSet('vd_photo_folder_id', folderId);
+  lsSet('vd_photo_client_id', clientId); lsSet('vd_photo_api_key', apiKey); lsSet('vd_photo_folder_id', folderId); lsSet('vd_photo_proxy', proxyUrl);
   show($('#settingsModal'), false); cclear(); location.reload();
 }
 
@@ -580,6 +607,8 @@ function bind() {
   $('#selZip').addEventListener('click', downloadZip); $('#selAlbum').addEventListener('click', openAlbumModal);
   $('#selRemove').addEventListener('click', removeFromAlbum); $('#selCover').addEventListener('click', setCover);
   $('#requestAccessBtn').addEventListener('click', async () => { try { await S.backend.store.sendRequest(S.email, ''); toast(t('reqSent')); } catch (e) { toast(t('saveErr')); } });
+  $('#layoutBtn').addEventListener('click', () => { S.justified = !S.justified; lsSet('vdphoto_layout', S.justified ? 'justified' : 'masonry'); $('#layoutBtn').firstElementChild.className = S.justified ? 'fas fa-table-cells-large' : 'fas fa-table-columns'; route(); });
+  $('#layoutBtn').firstElementChild.className = S.justified ? 'fas fa-table-cells-large' : 'fas fa-table-columns';
   $('#zipCancel').addEventListener('click', () => { ZIP.cancel = true; });
   initLightbox();
 }
