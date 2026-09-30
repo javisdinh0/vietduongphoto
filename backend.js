@@ -1,5 +1,6 @@
 // Backend cho VietDuong Photo: Google Drive (đọc), Firestore (album ảo + yêu cầu truy cập),
 // và chế độ demo (?demo=1) dùng dữ liệu giả sinh trong trình duyệt để test không cần đăng nhập.
+import { mergeDelta } from './lib.js';
 const FB_VER = '10.12.5';
 const FB_CONFIG = {
   apiKey: 'AIzaSyB8-vSVDKhOLuTA6xmYZzwHVrWX58eT3d4',
@@ -11,63 +12,115 @@ const FB_CONFIG = {
 };
 export const ADMIN_FALLBACK = 'dinhvietdung.vn@gmail.com';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
-const FIELDS = 'nextPageToken,files(id,name,mimeType,createdTime,thumbnailLink,webContentLink,size,parents,' +
-  'imageMediaMetadata(width,height,time,cameraMake,cameraModel,lens,aperture,exposureTime,focalLength,isoSpeed,rotation))';
+// Danh sách chỉ lấy trường nhẹ; EXIF đầy đủ lấy riêng khi mở lightbox (drive.meta).
+const LIST_FIELDS = 'nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,thumbnailLink,webContentLink,size,parents,imageMediaMetadata(width,height,time))';
+const FOLDER_FIELDS = 'nextPageToken,files(id,name,parents)';
 
 const chunks = (a, n) => { const r = []; for (let i = 0; i < a.length; i += n) r.push(a.slice(i, i + n)); return r; };
 const lc = (s) => (s || '').trim().toLowerCase();
 
 // ---------------------------------------------------------------- Drive (thật)
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// fetch có exponential backoff cho 429 / 5xx / 403 rateLimit (quota Drive).
+async function retryFetch(url, opts, tries = 5) {
+  for (let i = 0; ; i++) {
+    let r;
+    try { r = await fetch(url, opts); } catch (e) { if (i >= tries - 1) throw e; await sleep(500 * 2 ** i); continue; }
+    let limited = r.status === 429 || r.status >= 500;
+    if (r.status === 403) { try { const j = await r.clone().json(); limited = /rateLimit|quota/i.test(JSON.stringify((j.error && j.error.errors) || '')); } catch (e) { /* không phải JSON */ } }
+    if (!limited || i >= tries - 1) return r;
+    await sleep(500 * 2 ** i + Math.random() * 300);
+  }
+}
+
 export function createDrive(getToken, apiKey) {
-  async function list(q) {
+  const auth = () => ({ headers: { Authorization: 'Bearer ' + getToken() } });
+  async function list(q, fields) {
     const out = []; let pt = '';
     do {
       let url = 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) +
-        '&fields=' + encodeURIComponent(FIELDS) + '&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true';
+        '&fields=' + encodeURIComponent(fields) + '&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true';
       if (apiKey) url += '&key=' + encodeURIComponent(apiKey);
       if (pt) url += '&pageToken=' + encodeURIComponent(pt);
-      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + getToken() } });
+      const r = await retryFetch(url, auth());
       if (r.status === 401) throw new Error('UNAUTH');
       if (r.status === 403 || r.status === 404) throw new Error('PERMISSION_DENIED');
-      if (!r.ok) { let m = 'HTTP ' + r.status; try { m = (await r.json()).error.message; } catch (e) {} throw new Error(m); }
+      if (!r.ok) { let m = 'HTTP ' + r.status; try { m = (await r.json()).error.message; } catch (e) { /* bỏ qua */ } throw new Error(m); }
       const d = await r.json(); out.push(...(d.files || [])); pt = d.nextPageToken;
     } while (pt);
     return out;
   }
   const inParents = (ids) => '(' + ids.map((i) => `'${i}' in parents`).join(' or ') + ')';
-  return {
-    // Duyệt cây thư mục theo tầng, mỗi tầng gộp 20 thư mục / 1 truy vấn.
-    async loadAll(rootId, onProgress) {
-      const folders = [{ id: rootId, name: '', parent: null }];
-      let level = [rootId];
-      while (level.length) {
-        const next = [];
-        for (const grp of chunks(level, 20)) {
+
+  async function loadFolders(rootId, onProgress) {
+    const folders = [{ id: rootId, name: '', parent: null }];
+    let level = [rootId];
+    while (level.length) {
+      const next = [];
+      // các truy vấn cùng 1 tầng chạy song song (tối đa 3 luồng)
+      const groups = chunks(level, 20);
+      for (let i = 0; i < groups.length; i += 3) {
+        await Promise.all(groups.slice(i, i + 3).map(async (grp) => {
           try {
-            const fs = await list(inParents(grp) + ` and mimeType='${FOLDER_MIME}' and trashed=false`);
+            const fs = await list(inParents(grp) + ` and mimeType='${FOLDER_MIME}' and trashed=false`, FOLDER_FIELDS);
             fs.forEach((f) => { folders.push({ id: f.id, name: f.name, parent: f.parents && f.parents[0] }); next.push(f.id); });
           } catch (e) { if (e.message === 'UNAUTH' || grp.includes(rootId)) throw e; }
-        }
-        level = next;
-        onProgress && onProgress(folders.length, 0);
+        }));
       }
-      const files = [];
-      for (const grp of chunks(folders.map((f) => f.id), 20)) {
-        try {
-          const fs = await list(inParents(grp) + ` and mimeType!='${FOLDER_MIME}' and trashed=false`);
-          files.push(...fs);
-        } catch (e) { if (e.message === 'UNAUTH' || grp.includes(rootId)) throw e; }
-        onProgress && onProgress(folders.length, files.length);
-      }
-      return { folders, files };
+      level = next; onProgress && onProgress(folders.length, 0);
+    }
+    return folders;
+  }
+  async function listFiles(folderIds, extra, fields, onProgress, base) {
+    const files = []; const groups = chunks(folderIds, 20);
+    for (let i = 0; i < groups.length; i += 3) {
+      await Promise.all(groups.slice(i, i + 3).map(async (grp) => {
+        try { files.push(...await list(inParents(grp) + extra, fields)); } catch (e) { if (e.message === 'UNAUTH' || grp.includes(folderIds[0])) throw e; }
+      }));
+      onProgress && onProgress(base, files.length);
+    }
+    return files;
+  }
+  const notFolder = ` and mimeType!='${FOLDER_MIME}'`;
+
+  return {
+    // Tải đầy đủ. Trả thêm syncedAt để lần sau chỉ lấy phần thay đổi.
+    async loadAll(rootId, onProgress) {
+      const syncedAt = Date.now() - 60000;
+      const folders = await loadFolders(rootId, onProgress);
+      const files = await listFiles(folders.map((f) => f.id), notFolder + ' and trashed=false', LIST_FIELDS, onProgress, folders.length);
+      return { folders, files, syncedAt };
+    },
+    // Đồng bộ tăng dần: dựng lại cây thư mục (rẻ) + chỉ file có modifiedTime mới hơn lần trước (kể cả đã vào thùng rác).
+    async refresh(rootId, prev, onProgress) {
+      const syncedAt = Date.now() - 60000;
+      const folders = await loadFolders(rootId, onProgress);
+      const since = new Date(prev.syncedAt).toISOString();
+      const delta = await listFiles(folders.map((f) => f.id), notFolder + ` and modifiedTime > '${since}'`, LIST_FIELDS.replace('files(', 'files(trashed,'), onProgress, folders.length);
+      return { folders, files: mergeDelta(prev.files, delta, new Set(folders.map((f) => f.id))), syncedAt };
     },
     async userEmail() {
-      const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + getToken() } });
+      const r = await retryFetch('https://www.googleapis.com/oauth2/v3/userinfo', auth());
       if (r.status === 401) throw new Error('UNAUTH');
       return r.ok ? lc((await r.json()).email) : '';
     },
+    // EXIF đầy đủ, lấy khi mở lightbox (danh sách chỉ lấy width/height/time cho nhẹ).
+    async meta(id) {
+      const r = await retryFetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=${encodeURIComponent('imageMediaMetadata,size')}&supportsAllDrives=true`, auth());
+      return r.ok ? r.json() : null;
+    },
+    // Link thumbnail mới (link cũ hết hạn sau vài giờ).
+    async thumb(id) {
+      const r = await retryFetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=thumbnailLink&supportsAllDrives=true`, auth());
+      return r.ok ? (await r.json()).thumbnailLink || null : null;
+    },
+    async stream(item) {
+      const r = await retryFetch(`https://www.googleapis.com/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, auth());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.body;
+    },
     async blob(item) {
-      const r = await fetch(`https://www.googleapis.com/drive/v3/files/${item.id}?alt=media`, { headers: { Authorization: 'Bearer ' + getToken() } });
+      const r = await retryFetch(`https://www.googleapis.com/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, auth());
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.blob();
     },
@@ -185,8 +238,12 @@ export function createDemo(guest) {
     demo: true,
     drive: {
       async loadAll() {
-        return { folders: folders.filter((f) => guest ? f.id !== 'f-locked' : true), files: files.filter((f) => guest ? f.parents[0] !== 'f-locked' : true) };
+        return { folders: folders.filter((f) => guest ? f.id !== 'f-locked' : true), files: files.filter((f) => guest ? f.parents[0] !== 'f-locked' : true), syncedAt: Date.now() };
       },
+      async refresh() { return this.loadAll(); },
+      async meta() { return null; },
+      async thumb() { return null; },
+      async stream(item) { return (await fetch(item.dl)).body; },
       async userEmail() { return guest ? 'khach@example.com' : ADMIN_FALLBACK; },
       async blob(item) { return (await fetch(item.dl)).blob(); },
     },

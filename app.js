@@ -1,9 +1,12 @@
 import { createDrive, createStore, createDemo, ADMIN_FALLBACK } from './backend.js';
+import { buildLibrary, applyFilters as filterList, groupMonths, parseHash, thumbAt, signature } from './lib.js';
+import { makeZip, ZipStream } from './zip.js';
 
 // ============================ Cấu hình mặc định ============================
 const DEFAULT_CLIENT_ID = '110344757733-bnomi4d63vsrb144pt5qpss8246supmd.apps.googleusercontent.com';
 const DEFAULT_FOLDER_ID = '1MurjCwIStG_1KkT8Au492FT9_2-rPSP6';
-const CACHE_TTL = 20 * 60 * 1000;
+const CACHE_TTL = 5 * 60 * 1000; // dưới mức này: dùng cache, không hỏi Drive
+const FULL_REFRESH = 24 * 3600 * 1000; // quá mức này: tải lại toàn bộ thay vì đồng bộ tăng dần
 const PAGE = 80;
 
 const QS = new URLSearchParams(location.search);
@@ -35,6 +38,7 @@ const I18N = {
     removed: 'Đã bỏ khỏi album', coverSet: 'Đã đặt ảnh bìa', reqSent: 'Đã gửi yêu cầu cho chủ thư viện', saveErr: 'Không lưu được (Firestore từ chối hoặc chưa bật Google sign-in)',
     zipping: 'Đang nén', zipBig: 'Tổng dung lượng khoảng {mb} MB, tiếp tục?', nothing: 'Chưa chọn ảnh nào', pickOne: 'Chọn đúng 1 ảnh làm bìa',
     subAlbums: 'Album con', photosHere: 'Ảnh trong album', openDrive: 'Đang tải cây thư mục...', selected: 'đã chọn',
+    updated: 'Đã cập nhật thư viện', byYear: 'Theo năm', byMonth: 'Theo tháng', cancelled: 'Đã huỷ',
     infoName: 'Tên', infoDate: 'Ngày chụp', infoSize: 'Kích thước', infoFile: 'Dung lượng', infoCam: 'Máy ảnh', infoLens: 'Ống kính', infoExp: 'Thông số',
   },
   en: {
@@ -53,6 +57,7 @@ const I18N = {
     removed: 'Removed from album', coverSet: 'Cover set', reqSent: 'Request sent to the library owner', saveErr: 'Could not save (Firestore denied or Google sign-in not enabled)',
     zipping: 'Zipping', zipBig: 'Total about {mb} MB, continue?', nothing: 'Nothing selected', pickOne: 'Select exactly 1 photo for the cover',
     subAlbums: 'Sub-albums', photosHere: 'Photos in album', openDrive: 'Loading folder tree...', selected: 'selected',
+    updated: 'Library updated', byYear: 'By year', byMonth: 'By month', cancelled: 'Cancelled',
     infoName: 'Name', infoDate: 'Taken', infoSize: 'Dimensions', infoFile: 'File size', infoCam: 'Camera', infoLens: 'Lens', infoExp: 'Exposure',
   },
 };
@@ -95,73 +100,38 @@ let refreshTimer = null;
 
 function toast(msg) { const n = $('#toast'); n.textContent = msg; show(n); clearTimeout(toast.t); toast.t = setTimeout(() => show(n, false), 2600); }
 
-// ============================ Xây thư viện ============================
-const RAW_EXT = ['arw', 'cr2', 'cr3', 'nef', 'dng', 'raf', 'orf', 'rw2'];
-const STD_EXT = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'gif', 'bmp'];
-const parseTaken = (s) => { const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(s || ''); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : 0; };
-
-function buildLibrary(raw) {
-  S.folders = new Map();
-  raw.folders.forEach((f) => S.folders.set(f.id, { id: f.id, name: f.name, parent: f.parent, children: [], photos: [] }));
-  S.folders.forEach((f) => { const p = S.folders.get(f.parent); if (p) p.children.push(f); });
-  const groups = new Map();
-  raw.files.forEach((f) => {
-    const parent = f.parents && f.parents[0];
-    if (!S.folders.has(parent)) return;
-    const m = /^(.*)\.([A-Za-z0-9]+)$/.exec(f.name);
-    const base = m ? m[1] : f.name; const ext = m ? m[2].toLowerCase() : '';
-    const isRaw = RAW_EXT.includes(ext);
-    const isImg = STD_EXT.includes(ext) || (f.mimeType || '').startsWith('image/') && !isRaw;
-    if (!isRaw && !isImg) return;
-    const key = parent + '|' + base.toLowerCase();
-    const g = groups.get(key) || { parent, std: null, raw: null };
-    if (isRaw) g.raw = f; else if (!g.std) g.std = f; else groups.set(key + '|' + f.id, { parent, std: f, raw: null });
-    groups.set(key, g);
-  });
-  const photos = [];
-  groups.forEach((g) => {
-    const f = g.std || g.raw; const md = f.imageMediaMetadata || {};
-    const thumb = f.thumbnailLink || '';
-    const scaled = /=s\d+/.test(thumb);
-    const nm = /^(.*)\.([A-Za-z0-9]+)$/.exec(f.name);
-    photos.push({
-      id: f.id, name: f.name, parent: g.parent, ext: (nm ? nm[2] : 'JPG').toUpperCase().replace('JPEG', 'JPG'),
-      time: parseTaken(md.time) || (f.createdTime ? new Date(f.createdTime).getTime() : 0),
-      w: md.width || 0, h: md.height || 0, size: +f.size || 0, meta: md,
-      thumb: thumb ? (scaled ? thumb.replace(/=s\d+.*/, '=s600') : thumb) : `https://drive.google.com/thumbnail?id=${f.id}&sz=w600`,
-      full: thumb ? (scaled ? thumb.replace(/=s\d+.*/, '=s2000') : thumb) : `https://drive.google.com/thumbnail?id=${f.id}&sz=w2000`,
-      dl: f.webContentLink || `https://drive.google.com/uc?id=${f.id}&export=download`,
-      onlyRaw: !g.std,
-      raw: g.std && g.raw ? { id: g.raw.id, name: g.raw.name, dl: g.raw.webContentLink || `https://drive.google.com/uc?id=${g.raw.id}&export=download`, size: +g.raw.size || 0 } : null,
-    });
-  });
-  photos.sort((a, b) => b.time - a.time);
-  S.photos = photos; S.byId = new Map(photos.map((p) => [p.id, p]));
-  photos.forEach((p) => S.folders.get(p.parent).photos.push(p));
-  // đếm sâu + ảnh bìa cho từng thư mục
-  const deep = (f) => { f.deep = f.photos.slice(); f.children.forEach((c) => { deep(c); f.deep.push(...c.deep); }); f.deep.sort((a, b) => b.time - a.time); };
-  const root = S.folders.get(folderId) || S.folders.values().next().value;
-  deep(root); S.root = root;
+// ============================ Xây thư viện (logic ở lib.js) ============================
+function applyRaw(raw) {
+  const L = buildLibrary(raw, folderId);
+  S.folders = L.folders; S.photos = L.photos; S.byId = L.byId; S.root = L.root;
 }
 
 // ============================ Tải dữ liệu ============================
 async function loadLibrary(force) {
-  show($('#loader')); $('#loaderText').textContent = t('openDrive');
-  show($('#errorMessage'), false); show($('#app'), false);
+  show($('#errorMessage'), false);
   const key = 'lib:' + folderId;
+  const useCache = !S.backend.demo || QS.get('cache') === '1'; // demo mặc định không cache; ?cache=1 để test SWR
+  const cached = !force && useCache ? await cget(key) : null;
+  const usable = cached && cached.email === S.email;
+  let shown = false;
+  const render = async (raw, first) => {
+    const y = window.scrollY;
+    applyRaw(raw);
+    if (first) { try { S.vAlbums = await S.backend.store.listAlbums(); } catch (e) { S.vAlbums = []; } }
+    S.loaded = true; show($('#app')); fillYears(); route();
+    if (!first) window.scrollTo(0, y);
+  };
+  if (usable) { await render(cached.raw, true); shown = true; show($('#loader'), false); } else { show($('#loader')); $('#loaderText').textContent = t('openDrive'); show($('#app'), false); }
   try {
-    let raw = null;
-    if (!force && !S.backend.demo) { const c = await cget(key); if (c && Date.now() - c.t < CACHE_TTL) raw = c.raw; }
-    if (!raw) {
-      raw = await S.backend.drive.loadAll(folderId, (nf, nfile) => { $('#loaderText').textContent = `${t('loading')} ${nf} / ${nfile}`; });
-      if (!S.backend.demo) cset(key, { t: Date.now(), raw });
-    }
-    buildLibrary(raw);
-    try { S.vAlbums = await S.backend.store.listAlbums(); } catch (e) { S.vAlbums = []; }
-    S.loaded = true;
-    show($('#app'));
-    fillYears(); route();
-  } catch (err) { showError(err); } finally { show($('#loader'), false); }
+    if (usable && Date.now() - cached.t < CACHE_TTL) return; // cache còn mới
+    const progress = (nf, nfile) => { if (!shown) $('#loaderText').textContent = `${t('loading')} ${nf} / ${nfile}`; };
+    const canDelta = usable && cached.raw.syncedAt && Date.now() - (cached.full || 0) < FULL_REFRESH;
+    const raw = canDelta ? await S.backend.drive.refresh(folderId, cached.raw, progress) : await S.backend.drive.loadAll(folderId, progress);
+    if (useCache) cset(key, { t: Date.now(), full: canDelta ? cached.full : Date.now(), email: S.email, raw });
+    if (!shown) await render(raw, true);
+    else if (signature(raw) !== signature(cached.raw)) { await render(raw, false); toast(t('updated')); }
+  } catch (err) { if (!shown || err.message === 'UNAUTH') showError(err); }
+  finally { show($('#loader'), false); }
 }
 
 function showError(err) {
@@ -233,19 +203,25 @@ const saveFavs = () => lsSet('vdphoto_fav', JSON.stringify([...S.favs]));
 function toggleFav(id) { if (S.favs.has(id)) S.favs.delete(id); else S.favs.add(id); saveFavs(); }
 
 // ============================ Router ============================
-function parseHash() {
-  const h = location.hash.replace(/^#\/?/, '');
-  const [a, b] = h.split('/');
-  if (a === 'all') return { type: 'all' };
-  if (a === 'fav') return { type: 'fav' };
-  if (a === 'f' && b) return { type: 'folder', id: decodeURIComponent(b) };
-  if (a === 'v' && b) return { type: 'valbum', id: decodeURIComponent(b) };
-  return { type: 'home' };
+// Ghi nhớ vị trí cuộn theo từng trang để quay lại (Back) không mất chỗ.
+const scrollMap = new Map(); let lastHash = location.hash;
+window.addEventListener('hashchange', () => {
+  scrollMap.set(lastHash, window.scrollY); lastHash = location.hash;
+  if (!S.loaded) return;
+  if (!S.selectMode || S.route.type === 'home') exitSelect();
+  route(); restoreScroll(scrollMap.get(location.hash) || 0);
+});
+function restoreScroll(y) {
+  requestAnimationFrame(() => {
+    let guard = 0;
+    while (S.loadMore && document.documentElement.scrollHeight < y + window.innerHeight && guard++ < 200) { if (!S.loadMore()) break; }
+    window.scrollTo(0, y);
+  });
 }
-window.addEventListener('hashchange', () => { if (S.loaded) { exitSelect(); route(); } });
 
 function route() {
-  S.route = parseHash();
+  S.route = parseHash(location.hash);
+  S.loadMore = null;
   const view = $('#view'); view.innerHTML = ''; view.className = '';
   const crumbs = $('#crumbs'); crumbs.innerHTML = ''; $('#viewActions').innerHTML = '';
   const addCrumb = (label, href) => { if (crumbs.children.length) crumbs.appendChild(el('span', 'sep', '/')); if (href) { const a = el('a', '', label); a.href = href; crumbs.appendChild(a); } else crumbs.appendChild(el('span', 'cur', label)); };
@@ -263,6 +239,10 @@ function route() {
     if (S.root.photos.length) { view.appendChild(el('h3', 'section-title', t('unsorted'))); renderPhotos(view, S.root.photos); }
     else { show($('#timeline'), false); S.visible = []; }
     if (S.isAdmin) viewActionBtn('fa-folder-plus', t('addAlbum'), () => toast(t('select')) || enterSelect());
+  } else if (r.type === 'photo') {
+    addCrumb(t('home'), '#/'); addCrumb(t('all')); renderPhotos(view, S.photos); updateSelectBar();
+    if (S.byId.has(r.id)) openLightbox(r.id); else toast(t('notFound'));
+    return;
   } else if (r.type === 'all') { addCrumb(t('home'), '#/'); addCrumb(t('all')); renderPhotos(view, S.photos); }
   else if (r.type === 'fav') { addCrumb(t('home'), '#/'); addCrumb(t('fav')); renderPhotos(view, S.photos.filter((p) => S.favs.has(p.id))); }
   else if (r.type === 'folder') {
@@ -300,7 +280,7 @@ function renderAlbumGrid(container, cards, title) {
   cards.forEach((c) => {
     const card = el('div', 'album-card' + (c.virtual ? ' album-virtual' : ''));
     const cover = el('div', 'album-cover');
-    if (c.cover) { const img = el('img'); img.loading = 'lazy'; img.src = c.cover.thumb; img.alt = c.name; cover.appendChild(img); } else cover.innerHTML = '<i class="fas fa-images"></i>';
+    if (c.cover) { const img = el('img'); img.loading = 'lazy'; img.src = thumbAt(c.cover, 400); img.alt = c.name; cover.appendChild(img); } else cover.innerHTML = '<i class="fas fa-images"></i>';
     const info = el('div', 'album-info'); info.appendChild(el('div', 'album-name', c.name)); info.appendChild(el('div', 'album-count', `${c.count} ${t('photos')}`));
     card.append(cover, info); card.addEventListener('click', () => { location.hash = c.href; });
     grid.appendChild(card);
@@ -316,53 +296,78 @@ function fillYears() {
   years.forEach((y) => sel.appendChild(new Option(String(y), String(y))));
   sel.value = S.filters.year;
 }
-function applyFilters(list) {
-  const q = S.filters.q.trim().toLowerCase();
-  return list.filter((p) => (!q || p.name.toLowerCase().includes(q)) && (!S.filters.year || String(new Date(p.time).getFullYear()) === S.filters.year) &&
-    (!S.filters.raw || p.raw || p.onlyRaw) && (!S.filters.fav || S.favs.has(p.id)));
-}
+const applyFilters = (list) => filterList(list, S.filters, S.favs);
+const saveFilters = () => { try { sessionStorage.setItem('vdphoto_filters', JSON.stringify(S.filters)); } catch (e) { /* bỏ qua */ } };
 
+let spy = null;
 function renderPhotos(container, list) {
   const items = applyFilters(list);
   S.visible = items;
   const tl = $('#timeline'); tl.innerHTML = '';
+  if (spy) { spy.disconnect(); spy = null; }
   if (!items.length) { container.appendChild(el('p', 'empty-state', t('empty'))); show(tl, false); return; }
-  const rows = []; const months = []; let cur = '';
-  items.forEach((p) => {
-    const d = new Date(p.time); const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-    if (key !== cur) { cur = key; months.push({ key, idx: rows.length, label: `${d.getMonth() + 1}/${d.getFullYear()}`, title: lang === 'vi' ? `Tháng ${d.getMonth() + 1}, ${d.getFullYear()}` : `${d.toLocaleString('en', { month: 'long' })} ${d.getFullYear()}` }); rows.push({ h: months[months.length - 1] }); }
-    rows.push({ p });
-  });
+  const { rows, months } = groupMonths(items, lang);
   const box = el('div', S.selectMode ? 'select-mode' : ''); box.id = 'photoBox'; container.appendChild(box);
   let pos = 0; let grid = null;
   const sentinel = el('div', 'more-sentinel');
+  // Scroll-spy: đánh dấu tháng/năm đang xem trên timeline.
+  spy = new IntersectionObserver((es) => {
+    es.forEach((e) => {
+      if (!e.isIntersecting) return;
+      const k = e.target.id.slice(2); const yr = k.split('-')[0];
+      tl.querySelectorAll('a').forEach((a) => a.classList.toggle('active', a.dataset.key === k || (tl.classList.contains('by-year') && a.dataset.year === yr)));
+    });
+  }, { rootMargin: '-80px 0px -80% 0px' });
   const more = (n) => {
     const end = Math.min(rows.length, pos + n);
     for (; pos < end; pos++) {
       const r = rows[pos];
-      if (r.h) { const h = el('h2', 'date-header', r.h.title); h.id = 'g-' + r.h.key; box.appendChild(h); grid = el('div', 'gallery'); box.appendChild(grid); }
+      if (r.h) { const h = el('h2', 'date-header', r.h.title); h.id = 'g-' + r.h.key; box.appendChild(h); spy.observe(h); grid = el('div', 'gallery'); box.appendChild(grid); }
       else grid.appendChild(photoCard(r.p));
     }
     if (pos >= rows.length) { io.disconnect(); sentinel.remove(); }
   };
-  const io = new IntersectionObserver((es) => { if (es[0].isIntersecting) more(PAGE); }, { rootMargin: '600px' });
+  const io = new IntersectionObserver((es) => { if (es[0].isIntersecting) more(PAGE); }, { rootMargin: '800px' });
   container.appendChild(sentinel); io.observe(sentinel); more(PAGE);
+  S.loadMore = () => { if (pos >= rows.length) return false; more(PAGE); return true; };
+  const jump = (idx, key) => { while (pos <= idx) more(PAGE); document.getElementById('g-' + key).scrollIntoView({ behavior: 'smooth' }); };
   if (months.length > 1) {
+    const byYear = lsGet('vdphoto_tl', 'month') === 'year' || months.length > 36;
+    tl.classList.toggle('by-year', byYear);
+    const tog = el('button', 'tl-toggle', byYear ? t('byMonth') : t('byYear'));
+    tog.addEventListener('click', () => { lsSet('vdphoto_tl', byYear ? 'month' : 'year'); route(); });
+    tl.appendChild(tog);
+    const seenYears = new Set();
     months.forEach((m, i) => {
-      const a = el('a', i === 0 ? 'active' : '', m.label); a.href = '#g-' + m.key;
-      a.addEventListener('click', (e) => { e.preventDefault(); while (pos <= m.idx) more(PAGE); tl.querySelectorAll('a').forEach((x) => x.classList.remove('active')); a.classList.add('active'); document.getElementById('g-' + m.key).scrollIntoView({ behavior: 'smooth' }); });
+      if (byYear) { if (seenYears.has(m.year)) return; seenYears.add(m.year); }
+      const a = el('a', i === 0 ? 'active' : '', byYear ? String(m.year) : m.label); a.href = '#g-' + m.key; a.dataset.key = m.key; a.dataset.year = String(m.year);
+      a.addEventListener('click', (e) => { e.preventDefault(); jump(m.idx, m.key); });
       tl.appendChild(a);
     });
     show(tl);
   } else show(tl, false);
 }
 
+const SIZES = '(max-width:420px) 100vw,(max-width:768px) 50vw,(max-width:1024px) 33vw,25vw';
+function setThumb(img, p) {
+  if (p.tb) { img.srcset = [400, 800, 1200].map((w) => `${thumbAt(p, w)} ${w}w`).join(', '); img.sizes = SIZES; img.src = thumbAt(p, 600); }
+  else img.src = thumbAt(p, 600);
+}
 function photoCard(p) {
   const item = el('div', 'gallery-item' + (S.selected.has(p.id) ? ' selected' : '')); item.dataset.id = p.id;
   if (p.w && p.h) item.style.aspectRatio = `${p.w} / ${p.h}`; else item.style.minHeight = '160px';
-  const img = el('img'); img.loading = 'lazy'; img.alt = p.name; img.src = p.thumb;
+  const img = el('img'); img.loading = 'lazy'; img.alt = p.name; img.decoding = 'async';
   img.addEventListener('load', () => img.classList.add('ok'));
-  img.addEventListener('error', () => { const d = `https://drive.google.com/uc?id=${p.id}`; if (img.src !== d) img.src = d; else img.classList.add('ok'); });
+  // Link thumbnail hết hạn → xin link mới 1 lần, không được thì mới rơi về link thường.
+  img.addEventListener('error', async () => {
+    if (!p._renewed) {
+      p._renewed = true;
+      try { const link = await S.backend.drive.thumb(p.id); if (link && /=s\d+/.test(link)) { p.tb = link.replace(/=s\d+.*/, ''); img.removeAttribute('srcset'); setThumb(img, p); return; } } catch (e) { /* bỏ qua */ }
+    }
+    const d = `https://drive.google.com/uc?id=${p.id}`;
+    if (img.src !== d) { img.removeAttribute('srcset'); img.src = d; } else img.classList.add('ok');
+  });
+  setThumb(img, p);
   item.appendChild(img);
   item.appendChild(el('span', 'badge', p.onlyRaw ? 'RAW' : (p.raw ? p.ext + '+RAW' : p.ext)));
   const box = el('span', 'sel-box'); box.innerHTML = '<i class="fas fa-check"></i>'; item.appendChild(box);
@@ -383,43 +388,57 @@ function updateSelectBar() {
   show($('#selRemove'), S.isAdmin && S.route.type === 'valbum');
 }
 
-// ============================ Zip (store, không nén) ============================
-const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
-function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
-function makeZip(entries) {
-  const enc = new TextEncoder(); const parts = []; const cd = []; let off = 0;
-  entries.forEach((e) => {
-    const name = enc.encode(e.name); const crc = crc32(e.data); const sz = e.data.length;
-    const lh = new DataView(new ArrayBuffer(30)); lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
-    lh.setUint32(14, crc, true); lh.setUint32(18, sz, true); lh.setUint32(22, sz, true); lh.setUint16(26, name.length, true);
-    parts.push(lh.buffer, name, e.data);
-    const ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
-    ch.setUint32(16, crc, true); ch.setUint32(20, sz, true); ch.setUint32(24, sz, true); ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
-    cd.push(ch.buffer, name); off += 30 + name.length + sz;
-  });
-  const cdSize = cd.reduce((s, b) => s + b.byteLength, 0);
-  const end = new DataView(new ArrayBuffer(22)); end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true); end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
-  return new Blob([...parts, ...cd, end.buffer], { type: 'application/zip' });
-}
+// ============================ Zip ============================
+// Có File System Access API (Chrome/Edge desktop): ghi luồng ra file, RAM không tăng theo dung lượng.
+// Không có: gom trong RAM (tải song song 3 luồng, tự thử lại khi lỗi mạng).
+async function withRetry(fn, tries = 3) { for (let i = 0; ; i++) { try { return await fn(); } catch (e) { if (i >= tries - 1) throw e; await new Promise((r) => setTimeout(r, 800 * (i + 1))); } } }
+const ZIP = { cancel: false };
+function zipProgress(txt) { const b = $('#zipProg'); b.textContent = txt || ''; show(b, !!txt); show($('#zipCancel'), !!txt); }
 async function downloadZip() {
   const picks = [...S.selected].map((i) => S.byId.get(i)).filter(Boolean);
   if (!picks.length) return toast(t('nothing'));
   const withRaw = $('#zipRaw').checked; const jobs = [];
   picks.forEach((p) => { jobs.push({ name: p.name, ref: p }); if (withRaw && p.raw) jobs.push({ name: p.raw.name, ref: p.raw }); });
   const total = jobs.reduce((s, j) => s + (j.ref.size || 0), 0);
-  if (total > 400e6 && !confirm(t('zipBig').replace('{mb}', Math.round(total / 1e6)))) return;
-  const btn = $('#selZip'); btn.disabled = true; const used = new Set(); const entries = [];
+  if (total > 400e6 && !window.showSaveFilePicker && !confirm(t('zipBig').replace('{mb}', Math.round(total / 1e6)))) return;
+  let handle = null;
+  if (window.showSaveFilePicker && QS.get('nopicker') !== '1') {
+    try { handle = await window.showSaveFilePicker({ suggestedName: 'vietduong-photo.zip', types: [{ description: 'Zip', accept: { 'application/zip': ['.zip'] } }] }); }
+    catch (e) { if (e.name === 'AbortError') return; handle = null; }
+  }
+  const btn = $('#selZip'); btn.disabled = true; ZIP.cancel = false;
+  const used = new Set(); const uniq = (n) => { let x = n; while (used.has(x)) x = '_' + x; used.add(x); return x; };
   try {
-    for (let i = 0; i < jobs.length; i++) {
-      toast(`${t('zipping')} ${i + 1}/${jobs.length}...`);
-      let name = jobs[i].name; while (used.has(name)) name = '_' + name; used.add(name);
-      const b = await S.backend.drive.blob(jobs[i].ref);
-      entries.push({ name, data: new Uint8Array(await b.arrayBuffer()) });
+    if (handle) {
+      const w = await handle.createWritable(); const zs = new ZipStream(w);
+      try {
+        for (let i = 0; i < jobs.length; i++) {
+          zipProgress(`${t('zipping')} ${i + 1}/${jobs.length}`);
+          const body = await withRetry(() => S.backend.drive.stream(jobs[i].ref));
+          await zs.add(uniq(jobs[i].name), body, () => ZIP.cancel);
+        }
+        await zs.finish(); await w.close();
+      } catch (e) { try { await w.abort(); } catch (x) { /* bỏ qua */ } throw e; }
+    } else {
+      const entries = new Array(jobs.length); let next = 0; let done = 0;
+      const worker = async () => {
+        while (next < jobs.length) {
+          if (ZIP.cancel) throw new Error('CANCELLED');
+          const i = next++;
+          const b = await withRetry(() => S.backend.drive.blob(jobs[i].ref));
+          entries[i] = { name: jobs[i].name, data: new Uint8Array(await b.arrayBuffer()) };
+          zipProgress(`${t('zipping')} ${++done}/${jobs.length}`);
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      entries.forEach((e) => { e.name = uniq(e.name); });
+      const url = URL.createObjectURL(makeZip(entries));
+      const a = el('a'); a.href = url; a.download = 'vietduong-photo.zip'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
     }
-    const url = URL.createObjectURL(makeZip(entries));
-    const a = el('a'); a.href = url; a.download = 'vietduong-photo.zip'; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 30000); toast('OK');
-  } catch (e) { toast(e.message); } finally { btn.disabled = false; }
+    toast('OK');
+  } catch (e) { toast(e.message === 'CANCELLED' ? t('cancelled') : e.message); }
+  finally { btn.disabled = false; zipProgress(''); }
 }
 
 // ============================ Album ảo (admin) ============================
@@ -452,19 +471,34 @@ async function setCover() {
 }
 
 // ============================ Lightbox ============================
-const LB = { idx: 0, zoom: false, x: 0, y: 0, drag: null };
+const LB = { idx: 0, zoom: false, x: 0, y: 0, drag: null, play: null, pre: [] };
 const lbImg = () => $('#lightboxImg');
 function openLightbox(id) { LB.idx = Math.max(0, S.visible.findIndex((p) => p.id === id)); show($('#lightbox')); lbShow(); }
-function closeLightbox() { show($('#lightbox'), false); lbImg().src = ''; }
+function closeLightbox() {
+  lbStop(); show($('#lightbox'), false); lbImg().src = ''; LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
+  if (S.route.type === 'photo') location.hash = '#/all';
+}
+function lbStop() { clearInterval(LB.play); LB.play = null; const b = $('#lbPlay'); b.classList.remove('on'); b.firstElementChild.className = 'fas fa-play'; }
+function lbTogglePlay() {
+  if (LB.play) return lbStop();
+  const b = $('#lbPlay'); b.classList.add('on'); b.firstElementChild.className = 'fas fa-pause';
+  LB.play = setInterval(() => { if (LB.idx >= S.visible.length - 1) LB.idx = -1; lbMove(1); }, 4000);
+}
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();
-  lbReset(); lbImg().src = p.full; lbImg().alt = p.name;
+  lbReset();
+  const img = lbImg(); img.alt = p.name; img.src = thumbAt(p, 600); // hiện ngay thumbnail đã có, ảnh lớn tải xong thì thay
+  const big = new Image(); const cur = p.id; const full = thumbAt(p, 2000);
+  big.onload = () => { const q = S.visible[LB.idx]; if (q && q.id === cur) img.src = full; }; big.src = full;
   $('#lbCount').textContent = `${LB.idx + 1} / ${S.visible.length}  ·  ${p.name}`;
   const dl = $('#downloadBtn'); dl.href = p.dl; dl.download = p.name; dl.querySelector('span').textContent = `${t('dl')} (${p.onlyRaw ? 'RAW' : p.ext})`;
   const dr = $('#downloadRawBtn'); show(dr, !!p.raw); if (p.raw) { dr.href = p.raw.dl; dr.download = p.raw.name; }
   $('#lbFav').classList.toggle('on', S.favs.has(p.id)); $('#lbFav').firstElementChild.className = S.favs.has(p.id) ? 'fas fa-heart' : 'far fa-heart';
   renderInfo(p);
-  [S.visible[LB.idx + 1], S.visible[LB.idx - 1]].forEach((n) => { if (n) new Image().src = n.full; });
+  if (!p.metaFull && !S.backend.demo) S.backend.drive.meta(p.id).then((m) => { p.metaFull = true; if (m && m.imageMediaMetadata) { p.meta = { ...p.meta, ...m.imageMediaMetadata }; if (S.visible[LB.idx] === p) renderInfo(p); } }).catch(() => {});
+  // preload ±1 ảnh; hủy preload cũ khi lướt nhanh
+  LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
+  [S.visible[LB.idx + 1], S.visible[LB.idx - 1]].forEach((n) => { if (n) { const i = new Image(); i.src = thumbAt(n, 2000); LB.pre.push(i); } });
 }
 function lbMove(d) { const n = LB.idx + d; if (n < 0 || n >= S.visible.length) return; LB.idx = n; lbShow(); }
 function lbReset() { LB.zoom = false; LB.x = LB.y = 0; lbImg().style.transform = ''; lbImg().classList.remove('zoomed'); }
@@ -479,14 +513,19 @@ function renderInfo(p) {
   const exp = [m.aperture && `f/${m.aperture}`, m.exposureTime && (m.exposureTime < 1 ? `1/${Math.round(1 / m.exposureTime)}s` : `${m.exposureTime}s`), m.isoSpeed && `ISO ${m.isoSpeed}`, m.focalLength && `${m.focalLength}mm`].filter(Boolean).join(' · ');
   row(t('infoExp'), exp); panel.appendChild(dl);
 }
+function lbToggleFav() { const p = S.visible[LB.idx]; if (!p) return; toggleFav(p.id); lbShow(); const c = document.querySelector(`.gallery-item[data-id="${p.id}"] .fav-btn`); if (c) c.classList.toggle('on', S.favs.has(p.id)); }
+function lbShare() { const p = S.visible[LB.idx]; if (!p) return; const u = `${location.origin}${location.pathname}#/p/${encodeURIComponent(p.id)}`; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast(t('copied')), () => prompt(t('share'), u)); }
 function initLightbox() {
   $('#lbClose').addEventListener('click', closeLightbox);
   $('#lbPrev').addEventListener('click', () => lbMove(-1)); $('#lbNext').addEventListener('click', () => lbMove(1));
   $('#lbInfo').addEventListener('click', () => $('#lbPanel').classList.toggle('hidden'));
-  $('#lbFav').addEventListener('click', () => { const p = S.visible[LB.idx]; if (!p) return; toggleFav(p.id); lbShow(); const c = document.querySelector(`.gallery-item[data-id="${p.id}"] .fav-btn`); if (c) c.classList.toggle('on', S.favs.has(p.id)); });
+  $('#lbFav').addEventListener('click', lbToggleFav); $('#lbPlay').addEventListener('click', lbTogglePlay); $('#lbShare').addEventListener('click', lbShare);
   document.addEventListener('keydown', (e) => {
-    if ($('#lightbox').classList.contains('hidden')) return;
-    if (e.key === 'Escape') closeLightbox(); else if (e.key === 'ArrowLeft') lbMove(-1); else if (e.key === 'ArrowRight') lbMove(1);
+    if ($('#lightbox').classList.contains('hidden') || (e.target.matches && e.target.matches('input,textarea,select')) || e.ctrlKey || e.metaKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'escape') closeLightbox(); else if (k === 'arrowleft') lbMove(-1); else if (k === 'arrowright') lbMove(1);
+    else if (k === 'f') lbToggleFav(); else if (k === 'i') $('#lbPanel').classList.toggle('hidden'); else if (k === ' ') { e.preventDefault(); lbTogglePlay(); }
+    else if (k === 's') { const p = S.visible[LB.idx]; if (p) { if (!S.selectMode) enterSelect(); S.selected.add(p.id); const n = document.querySelector(`.gallery-item[data-id="${p.id}"]`); if (n) n.classList.add('selected'); updateSelectBar(); toast(`${S.selected.size} ${t('selected')}`); } }
   });
   const stage = $('#lbStage'); const img = lbImg();
   img.addEventListener('click', (e) => { if (LB.moved) { LB.moved = false; return; } LB.zoom = !LB.zoom; if (LB.zoom) { const r = img.getBoundingClientRect(); LB.x = -(e.clientX - r.left - r.width / 2) * 1.5; LB.y = -(e.clientY - r.top - r.height / 2) * 1.5; } lbApply(); });
@@ -530,10 +569,10 @@ function bind() {
   window.addEventListener('click', (e) => { if (e.target === $('#settingsModal')) show($('#settingsModal'), false); if (e.target === $('#albumModal')) show($('#albumModal'), false); });
   $('#langBtn').addEventListener('click', () => { lang = lang === 'vi' ? 'en' : 'vi'; lsSet('ividlab-lang', lang); applyI18n(); if (S.loaded) { fillYears(); route(); } });
   $('#themeBtn').addEventListener('click', () => applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
-  let qt; $('#searchInput').addEventListener('input', (e) => { clearTimeout(qt); qt = setTimeout(() => { S.filters.q = e.target.value; route(); }, 200); });
-  $('#yearSel').addEventListener('change', (e) => { S.filters.year = e.target.value; route(); });
-  $('#rawOnly').addEventListener('change', (e) => { S.filters.raw = e.target.checked; route(); });
-  $('#favOnly').addEventListener('change', (e) => { S.filters.fav = e.target.checked; route(); });
+  let qt; $('#searchInput').addEventListener('input', (e) => { clearTimeout(qt); qt = setTimeout(() => { S.filters.q = e.target.value; saveFilters(); route(); }, 200); });
+  $('#yearSel').addEventListener('change', (e) => { S.filters.year = e.target.value; saveFilters(); route(); });
+  $('#rawOnly').addEventListener('change', (e) => { S.filters.raw = e.target.checked; saveFilters(); route(); });
+  $('#favOnly').addEventListener('change', (e) => { S.filters.fav = e.target.checked; saveFilters(); route(); });
   $('#refreshBtn').addEventListener('click', () => loadLibrary(true));
   $('#selectBtn').addEventListener('click', () => (S.selectMode ? exitSelect() : enterSelect()));
   $('#selCancel').addEventListener('click', exitSelect);
@@ -541,9 +580,15 @@ function bind() {
   $('#selZip').addEventListener('click', downloadZip); $('#selAlbum').addEventListener('click', openAlbumModal);
   $('#selRemove').addEventListener('click', removeFromAlbum); $('#selCover').addEventListener('click', setCover);
   $('#requestAccessBtn').addEventListener('click', async () => { try { await S.backend.store.sendRequest(S.email, ''); toast(t('reqSent')); } catch (e) { toast(t('saveErr')); } });
+  $('#zipCancel').addEventListener('click', () => { ZIP.cancel = true; });
   initLightbox();
 }
 
+try {
+  const f = JSON.parse(sessionStorage.getItem('vdphoto_filters') || 'null');
+  if (f) { S.filters = { q: f.q || '', year: f.year || '', raw: !!f.raw, fav: !!f.fav }; $('#searchInput').value = S.filters.q; $('#rawOnly').checked = S.filters.raw; $('#favOnly').checked = S.filters.fav; }
+} catch (e) { /* bỏ qua */ }
+if ('serviceWorker' in navigator && !DEMO && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 applyI18n(); applyTheme(document.documentElement.getAttribute('data-theme') || 'light'); bind();
 if (!DEMO && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') import('/traffic-track.js').catch(() => {});
 initAuth();

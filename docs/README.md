@@ -20,3 +20,13 @@ Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn 
 
 ## Test không cần đăng nhập
 `/vietduongphoto/?demo=1` dùng dữ liệu Drive giả + album ảo lưu localStorage (`&guest=1` để xem như khách, không có quyền admin).
+
+## Tối ưu (v2)
+- **Cấu trúc:** `lib.js` (logic thuần: ghép JPG/RAW, lọc, gộp tháng, router, gộp delta), `zip.js` (zip trong RAM + `ZipStream` ghi luồng), `backend.js` (Drive/Firestore/demo), `app.js` (UI). Test: `npm test` (`tests/vietduongphoto.test.mjs`, node:test, không cần trình duyệt).
+- **Tải nhanh:** cache IndexedDB kiểu stale-while-revalidate — có cache là vẽ ngay (kể cả cũ), cache < 5 phút thì không hỏi Drive; cũ hơn thì đồng bộ nền **tăng dần** (`modifiedTime > lần trước`, kể cả file vào thùng rác), tải đủ lại sau 24h; đổi dữ liệu thì tự vẽ lại + toast. Truy vấn danh sách chỉ lấy `width,height,time`; EXIF đầy đủ lấy khi mở lightbox. Truy vấn cùng tầng chạy song song (3 luồng), backoff luỹ thừa cho 429/5xx/403 rateLimit.
+- **Ảnh:** `srcset` 400/800/1200, tự xin link thumbnail mới khi link hết hạn, hiện thumbnail ngay trong lightbox rồi thay ảnh lớn, hủy preload cũ khi lướt nhanh, `content-visibility:auto` cho ảnh ngoài màn hình.
+- **Zip:** Chrome/Edge desktop ghi luồng ra file (File System Access API, RAM không phình, file >4GB không hỗ trợ); trình duyệt khác gom trong RAM với 3 luồng + thử lại. Có nút huỷ. `?nopicker=1` ép dùng đường RAM để test.
+- **UX:** timeline theo dõi cuộn + chuyển Năm/Tháng, nhớ bộ lọc (sessionStorage) và vị trí cuộn khi Back, slideshow (Space), phím tắt (←/→/Esc/F/I/S), link ảnh `#/p/<id>`.
+- **PWA:** `sw.js` (chỉ đăng ký trên https): file của trang network-first, thumbnail Google cache-first (tối đa 600). Không cache Drive API/dữ liệu riêng tư. `manifest.webmanifest` để cài như app.
+- Test cache trên demo: `?demo=1&cache=1`.
+- **Chưa làm (cố ý):** virtual scroll thực sự (đã giảm chi phí bằng `content-visibility` + render dần; chỉ cần khi > ~5.000 ảnh); Drive batch endpoint (Google đã ngừng global batch); nén zip trong Web Worker (ghi luồng đã tránh treo RAM, CRC chạy chung luồng chính); proxy phía server.
