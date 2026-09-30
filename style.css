@@ -130,3 +130,8 @@ select, .form-group input { padding: .5rem .6rem; border-radius: 6px; border: 1p
     .header-container { padding: .5rem .6rem; }
     .btn-sm { padding: .4rem .6rem; }
 }
+
+/* Tối ưu render: bỏ qua layout/paint cho ảnh ngoài màn hình (tỉ lệ đã giữ chỗ bằng aspect-ratio) */
+.gallery-item { content-visibility: auto; contain-intrinsic-size: auto 220px; }
+.tl-toggle { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; font-size: .7rem; cursor: pointer; padding: 2px 6px; margin-bottom: 4px; }
+.zip-prog { font-size: .85rem; color: var(--muted); }

@@ -6,6 +6,8 @@
     <meta name="referrer" content="no-referrer">
     <title>VietDuong Photo Gallery</title>
     <link rel="icon" href="/favicon.svg">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#3b82f6">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
@@ -74,6 +76,8 @@
         <button class="btn btn-sm admin-only hidden" id="selAlbum"><i class="fas fa-folder-plus"></i> <span data-i18n="addAlbum">Thêm vào album</span></button>
         <button class="btn btn-sm admin-only hidden" id="selCover"><i class="fas fa-image"></i> <span data-i18n="setCover">Làm bìa</span></button>
         <button class="btn btn-sm admin-only hidden" id="selRemove"><i class="fas fa-folder-minus"></i> <span data-i18n="removeFromAlbum">Bỏ khỏi album</span></button>
+        <span id="zipProg" class="zip-prog hidden"></span>
+        <button class="btn btn-sm hidden" id="zipCancel"><i class="fas fa-ban"></i></button>
         <button class="btn btn-sm" id="selCancel"><span data-i18n="cancel">Huỷ</span></button>
     </div>
 
@@ -108,6 +112,8 @@
         <div class="lb-top">
             <span id="lbCount" class="lb-count"></span>
             <div class="lb-tools">
+                <button id="lbPlay" class="lb-btn" title="Trình chiếu (Space)"><i class="fas fa-play"></i></button>
+                <button id="lbShare" class="lb-btn" title="Sao chép link ảnh"><i class="fas fa-link"></i></button>
                 <button id="lbFav" class="lb-btn" title="Yêu thích"><i class="far fa-heart"></i></button>
                 <button id="lbInfo" class="lb-btn" title="Thông tin"><i class="fas fa-circle-info"></i></button>
                 <button id="lbClose" class="lb-btn" title="Đóng"><i class="fas fa-xmark"></i></button>
