@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
-import { buildLibrary, mergeDelta, parseBatch, buildBatch, signature, applyFilters, groupMonths, parseHash, parseTaken, thumbAt } from '../public/vietduongphoto/lib.js';
+import { buildLibrary, mergeDelta, parseBatch, buildBatch, signature, applyFilters, groupMonths, groupDays, parseHash, parseTaken, thumbAt } from '../public/vietduongphoto/lib.js';
 import { crc32, makeZip, ZipStream } from '../public/vietduongphoto/zip.js';
 import proxy from '../backend/vietduongphoto-proxy/worker.js';
 
@@ -102,4 +102,13 @@ test('proxy worker: yêu cầu token, chặn path lạ, chuyển tiếp + cache 
   assert.equal(calls.length, 2); assert.equal(calls[1][1], 'Bearer OTHER');
   await proxy.fetch(mk('/drive/v3/files/abc?alt=media', { Authorization: 'Bearer t' }), {}, ctx); await proxy.fetch(mk('/drive/v3/files/abc?alt=media', { Authorization: 'Bearer t' }), {}, ctx);
   assert.equal(calls.length, 4); // alt=media không cache
+});
+
+test('groupDays: mỗi ngày một nhóm, đếm ảnh, mang year/month/day', () => {
+  const T = (y, m, d, h) => new Date(y, m - 1, d, h).getTime();
+  const items = [{ id: 1, time: T(2025, 3, 14, 20) }, { id: 2, time: T(2025, 3, 14, 9) }, { id: 3, time: T(2025, 3, 2, 9) }, { id: 4, time: T(2024, 12, 31, 23) }];
+  const { rows, days } = groupDays(items, 'vi');
+  assert.equal(days.length, 3); assert.equal(rows.length, 4 + 3);
+  assert.deepEqual(days.map((d) => [d.key, d.count, d.mkey]), [['2025-3-14', 2, '2025-3'], ['2025-3-2', 1, '2025-3'], ['2024-12-31', 1, '2024-12']]);
+  assert.equal(days[0].label, '14/3'); assert.match(days[0].title, /14 tháng 3, 2025/); assert.match(groupDays(items, 'en').days[0].title, /March 14, 2025/);
 });

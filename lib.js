@@ -95,6 +95,26 @@ export function groupMonths(items, lang = 'vi') {
   return { rows, months };
 }
 
+// Gom theo NGÀY (tiêu đề mỗi ngày) — mỗi header mang year/month/day để timeline gom lại theo ngày/tháng/năm.
+export function groupDays(items, lang = 'vi') {
+  const rows = []; const days = []; let cur = '';
+  const wd = { vi: ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'], en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
+  items.forEach((p) => {
+    const d = new Date(p.time); const y = d.getFullYear(); const mo = d.getMonth() + 1; const da = d.getDate();
+    const key = `${y}-${mo}-${da}`;
+    if (key !== cur) {
+      cur = key;
+      const h = { key, year: y, month: mo, day: da, idx: rows.length, mkey: `${y}-${mo}`, count: 0,
+        label: `${da}/${mo}`, mlabel: `${mo}/${y}`,
+        title: lang === 'vi' ? `${wd.vi[d.getDay()]}, ${da} tháng ${mo}, ${y}` : `${wd.en[d.getDay()]}, ${d.toLocaleString('en', { month: 'long' })} ${da}, ${y}` };
+      days.push(h); rows.push({ h });
+    }
+    days[days.length - 1].count++;
+    rows.push({ p });
+  });
+  return { rows, days };
+}
+
 export function parseHash(hash) {
   const [a, b] = hash.replace(/^#\/?/, '').split('/');
   if (a === 'all') return { type: 'all' };

@@ -140,3 +140,7 @@ select, .form-group input { padding: .5rem .6rem; border-radius: 6px; border: 1p
 .gallery.justified { column-count: auto; display: flex; flex-wrap: wrap; gap: 6px; }
 .gallery.justified::after { content: ''; flex-grow: 1000000; }
 .gallery.justified .gallery-item { margin: 0; height: auto; }
+
+.day-count { font-size: .8rem; font-weight: 400; color: var(--muted); }
+.tl-month { font-size: .7rem; color: var(--muted); text-align: right; padding: 4px 8px 0; border-top: 1px solid var(--border); margin-top: 2px; }
+.timeline { max-height: 75vh; }

@@ -51,6 +51,16 @@ export function createDrive(getToken, apiKey, base = 'https://www.googleapis.com
     } while (pt);
     return out;
   }
+  // Truy vấn theo nhóm thư mục; nếu cả nhóm lỗi (vd. 1 thư mục con bị cấm) thì thử từng thư mục, chỉ thư mục gốc lỗi mới báo lỗi.
+  async function safeList(grp, extra, fields, rootId) {
+    try { return await list(inParents(grp) + extra, fields); } catch (e) {
+      if (e.message === 'UNAUTH' || (grp.length === 1 && grp[0] === rootId)) throw e;
+      if (grp.length === 1) return [];
+      const out = [];
+      for (const id of grp) out.push(...await safeList([id], extra, fields, rootId));
+      return out;
+    }
+  }
   const inParents = (ids) => '(' + ids.map((i) => `'${i}' in parents`).join(' or ') + ')';
 
   async function loadFolders(rootId, onProgress) {
@@ -62,10 +72,8 @@ export function createDrive(getToken, apiKey, base = 'https://www.googleapis.com
       const groups = chunks(level, 20);
       for (let i = 0; i < groups.length; i += 3) {
         await Promise.all(groups.slice(i, i + 3).map(async (grp) => {
-          try {
-            const fs = await list(inParents(grp) + ` and mimeType='${FOLDER_MIME}' and trashed=false`, FOLDER_FIELDS);
-            fs.forEach((f) => { folders.push({ id: f.id, name: f.name, parent: f.parents && f.parents[0] }); next.push(f.id); });
-          } catch (e) { if (e.message === 'UNAUTH' || grp.includes(rootId)) throw e; }
+          const fs = await safeList(grp, ` and mimeType='${FOLDER_MIME}' and trashed=false`, FOLDER_FIELDS, rootId);
+          fs.forEach((f) => { folders.push({ id: f.id, name: f.name, parent: f.parents && f.parents[0] }); next.push(f.id); });
         }));
       }
       level = next; onProgress && onProgress(folders.length, 0);
@@ -75,9 +83,7 @@ export function createDrive(getToken, apiKey, base = 'https://www.googleapis.com
   async function listFiles(folderIds, extra, fields, onProgress, base) {
     const files = []; const groups = chunks(folderIds, 20);
     for (let i = 0; i < groups.length; i += 3) {
-      await Promise.all(groups.slice(i, i + 3).map(async (grp) => {
-        try { files.push(...await list(inParents(grp) + extra, fields)); } catch (e) { if (e.message === 'UNAUTH' || grp.includes(folderIds[0])) throw e; }
-      }));
+      await Promise.all(groups.slice(i, i + 3).map(async (grp) => { files.push(...await safeList(grp, extra, fields, folderIds[0])); }));
       onProgress && onProgress(base, files.length);
     }
     return files;
