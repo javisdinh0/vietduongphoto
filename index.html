@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>VietDuong Photo Gallery</title>
+    <link rel="icon" href="/favicon.svg">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        (function () {
+            var saved = null;
+            try { saved = localStorage.getItem('ividlab-theme'); } catch (e) {}
+            if (!saved) saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', saved);
+        })();
+    </script>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1><a href="#/" class="brand"><i class="fas fa-camera-retro"></i> <span class="brand-text">VietDuong Photo</span></a></h1>
+            <div class="header-actions">
+                <a class="icon-btn" href="/" id="homeLink" title="ividlab.com"><i class="fas fa-house"></i></a>
+                <button id="langBtn" class="icon-btn txt" title="Language">VI</button>
+                <button id="themeBtn" class="icon-btn" title="Theme"><i class="fas fa-moon"></i></button>
+                <button id="loginBtn" class="btn btn-primary btn-sm hidden"><i class="fab fa-google"></i> <span data-i18n="login">Đăng nhập</span></button>
+                <button id="logoutBtn" class="btn btn-sm hidden"><i class="fas fa-sign-out-alt"></i> <span data-i18n="logout">Đăng xuất</span></button>
+                <button id="settingsBtn" class="icon-btn hidden" title="Cài đặt"><i class="fas fa-cog"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div id="loginScreen" class="empty-state">
+            <i class="fab fa-google" style="color:#4285F4"></i>
+            <h2 data-i18n="loginTitle">Yêu cầu đăng nhập</h2>
+            <p data-i18n="loginDesc">Trang web này yêu cầu đăng nhập bằng tài khoản Google để kiểm tra quyền truy cập thư viện ảnh.</p>
+            <button id="loginScreenBtn" class="btn btn-primary" style="margin-top:1rem" data-i18n="loginBtn">Đăng nhập bằng Google</button>
+        </div>
+
+        <div id="loader" class="loader hidden"><div class="spinner"></div><p id="loaderText" data-i18n="loading">Đang tải ảnh...</p></div>
+
+        <div id="errorMessage" class="error-message hidden">
+            <p id="errorText"></p>
+            <div class="err-actions">
+                <button id="requestAccessBtn" class="btn btn-primary hidden"><i class="fas fa-paper-plane"></i> <span data-i18n="reqAccess">Gửi yêu cầu truy cập</span></button>
+                <a id="requestMailBtn" href="#" class="btn hidden"><i class="fas fa-envelope"></i> <span data-i18n="reqMail">Gửi email xin truy cập</span></a>
+            </div>
+        </div>
+
+        <div id="app" class="hidden">
+            <nav id="crumbs" class="crumbs"></nav>
+            <div id="viewActions" class="view-actions"></div>
+            <div id="toolbar" class="toolbar">
+                <div class="search"><i class="fas fa-search"></i><input id="searchInput" type="search" placeholder="Tìm theo tên ảnh..." data-i18n-ph="search"></div>
+                <select id="yearSel"></select>
+                <label class="chk"><input type="checkbox" id="rawOnly"> <span data-i18n="rawOnly">Có RAW</span></label>
+                <label class="chk"><input type="checkbox" id="favOnly"> <span data-i18n="favOnly">Yêu thích</span></label>
+                <button id="selectBtn" class="btn btn-sm"><i class="fas fa-check-square"></i> <span data-i18n="select">Chọn</span></button>
+                <button id="refreshBtn" class="icon-btn" title="Tải lại"><i class="fas fa-rotate"></i></button>
+            </div>
+            <div id="view"></div>
+        </div>
+        <div id="timeline" class="timeline hidden"></div>
+    </main>
+
+    <div id="selectBar" class="select-bar hidden">
+        <span id="selCount">0</span>
+        <label class="chk"><input type="checkbox" id="zipRaw"> <span data-i18n="withRaw">kèm RAW</span></label>
+        <button class="btn btn-sm" id="selAll"><span data-i18n="selAll">Chọn tất cả</span></button>
+        <button class="btn btn-sm btn-primary" id="selZip"><i class="fas fa-file-zipper"></i> <span data-i18n="zip">Tải zip</span></button>
+        <button class="btn btn-sm admin-only hidden" id="selAlbum"><i class="fas fa-folder-plus"></i> <span data-i18n="addAlbum">Thêm vào album</span></button>
+        <button class="btn btn-sm admin-only hidden" id="selCover"><i class="fas fa-image"></i> <span data-i18n="setCover">Làm bìa</span></button>
+        <button class="btn btn-sm admin-only hidden" id="selRemove"><i class="fas fa-folder-minus"></i> <span data-i18n="removeFromAlbum">Bỏ khỏi album</span></button>
+        <button class="btn btn-sm" id="selCancel"><span data-i18n="cancel">Huỷ</span></button>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header"><h2 data-i18n="settingsTitle">Cài đặt Google Drive API</h2><span class="close-btn" id="closeSettings">&times;</span></div>
+            <div class="modal-body">
+                <p class="help-text" data-i18n="settingsHelp">Nhập thông tin OAuth để kết nối với Google Drive.</p>
+                <div class="form-group"><label for="clientId">OAuth Client ID</label><input type="text" id="clientId"></div>
+                <div class="form-group"><label for="apiKey">Google API Key</label><input type="password" id="apiKey"></div>
+                <div class="form-group"><label for="folderId">Google Drive Folder ID</label><input type="text" id="folderId"></div>
+                <div class="form-group"><label data-i18n="requests">Yêu cầu truy cập</label><ul id="reqList" class="req-list"></ul></div>
+            </div>
+            <div class="modal-footer"><button id="saveSettings" class="btn btn-primary" data-i18n="save">Lưu cấu hình</button></div>
+        </div>
+    </div>
+
+    <div id="albumModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header"><h2 data-i18n="addAlbum">Thêm vào album</h2><span class="close-btn" id="closeAlbum">&times;</span></div>
+            <div class="modal-body">
+                <div class="form-group"><label data-i18n="existAlbum">Album có sẵn</label><select id="albumSel"></select></div>
+                <div class="form-group"><label data-i18n="newAlbum">Hoặc tạo album mới</label><input type="text" id="albumName" placeholder="Tên album"></div>
+            </div>
+            <div class="modal-footer"><button id="albumOk" class="btn btn-primary" data-i18n="ok">Thêm</button></div>
+        </div>
+    </div>
+
+    <div id="lightbox" class="lightbox hidden">
+        <div class="lb-top">
+            <span id="lbCount" class="lb-count"></span>
+            <div class="lb-tools">
+                <button id="lbFav" class="lb-btn" title="Yêu thích"><i class="far fa-heart"></i></button>
+                <button id="lbInfo" class="lb-btn" title="Thông tin"><i class="fas fa-circle-info"></i></button>
+                <button id="lbClose" class="lb-btn" title="Đóng"><i class="fas fa-xmark"></i></button>
+            </div>
+        </div>
+        <button id="lbPrev" class="lb-nav prev"><i class="fas fa-chevron-left"></i></button>
+        <button id="lbNext" class="lb-nav next"><i class="fas fa-chevron-right"></i></button>
+        <div class="lightbox-content" id="lbStage"><img id="lightboxImg" src="" alt="Preview" draggable="false"></div>
+        <aside id="lbPanel" class="lb-panel hidden"></aside>
+        <div class="lightbox-controls">
+            <a id="downloadBtn" href="#" target="_blank" rel="noopener" class="btn btn-download"><i class="fas fa-download"></i> <span></span></a>
+            <a id="downloadRawBtn" href="#" target="_blank" rel="noopener" class="btn btn-download btn-raw hidden"><i class="fas fa-file-image"></i> <span data-i18n="dlRaw">Tải file RAW</span></a>
+        </div>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
