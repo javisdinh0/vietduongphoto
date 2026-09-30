@@ -135,3 +135,8 @@ select, .form-group input { padding: .5rem .6rem; border-radius: 6px; border: 1p
 .gallery-item { content-visibility: auto; contain-intrinsic-size: auto 220px; }
 .tl-toggle { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; font-size: .7rem; cursor: pointer; padding: 2px 6px; margin-bottom: 4px; }
 .zip-prog { font-size: .85rem; color: var(--muted); }
+
+.gallery-item { background-size: cover; background-position: center; }
+.gallery.justified { column-count: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.gallery.justified::after { content: ''; flex-grow: 1000000; }
+.gallery.justified .gallery-item { margin: 0; height: auto; }

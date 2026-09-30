@@ -60,6 +60,7 @@
                 <select id="yearSel"></select>
                 <label class="chk"><input type="checkbox" id="rawOnly"> <span data-i18n="rawOnly">Có RAW</span></label>
                 <label class="chk"><input type="checkbox" id="favOnly"> <span data-i18n="favOnly">Yêu thích</span></label>
+                <button id="layoutBtn" class="icon-btn" title="Bố cục lưới"><i class="fas fa-table-columns"></i></button>
                 <button id="selectBtn" class="btn btn-sm"><i class="fas fa-check-square"></i> <span data-i18n="select">Chọn</span></button>
                 <button id="refreshBtn" class="icon-btn" title="Tải lại"><i class="fas fa-rotate"></i></button>
             </div>
@@ -91,6 +92,7 @@
                 <div class="form-group"><label for="clientId">OAuth Client ID</label><input type="text" id="clientId"></div>
                 <div class="form-group"><label for="apiKey">Google API Key</label><input type="password" id="apiKey"></div>
                 <div class="form-group"><label for="folderId">Google Drive Folder ID</label><input type="text" id="folderId"></div>
+                <div class="form-group"><label for="proxyUrl">Proxy URL (tuỳ chọn)</label><input type="text" id="proxyUrl" placeholder="https://vdphoto-proxy.example.workers.dev"><small class="help-text">Cloudflare Worker cache metadata Drive, xem docs/vietduongphoto/README.md.</small></div>
                 <div class="form-group"><label data-i18n="requests">Yêu cầu truy cập</label><ul id="reqList" class="req-list"></ul></div>
             </div>
             <div class="modal-footer"><button id="saveSettings" class="btn btn-primary" data-i18n="save">Lưu cấu hình</button></div>

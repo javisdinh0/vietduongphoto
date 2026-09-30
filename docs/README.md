@@ -29,4 +29,13 @@ Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn 
 - **UX:** timeline theo dõi cuộn + chuyển Năm/Tháng, nhớ bộ lọc (sessionStorage) và vị trí cuộn khi Back, slideshow (Space), phím tắt (←/→/Esc/F/I/S), link ảnh `#/p/<id>`.
 - **PWA:** `sw.js` (chỉ đăng ký trên https): file của trang network-first, thumbnail Google cache-first (tối đa 600). Không cache Drive API/dữ liệu riêng tư. `manifest.webmanifest` để cài như app.
 - Test cache trên demo: `?demo=1&cache=1`.
-- **Chưa làm (cố ý):** virtual scroll thực sự (đã giảm chi phí bằng `content-visibility` + render dần; chỉ cần khi > ~5.000 ảnh); Drive batch endpoint (Google đã ngừng global batch); nén zip trong Web Worker (ghi luồng đã tránh treo RAM, CRC chạy chung luồng chính); proxy phía server.
+
+## Tối ưu (v3 — phần còn lại của đề xuất)
+- **Virtual recycling:** nội dung mỗi thẻ ảnh (`<img>`, nút) chỉ tồn tại khi thẻ cách màn hình < 2500px; cuộn xa thì gỡ, giữ khung theo tỉ lệ → 630 thẻ chỉ ~25–50 `<img>`. Test: `?demo=1&many=600`.
+- **Lưới đều (justified):** nút chuyển masonry ↔ lưới hàng đều (lưu localStorage).
+- **Blur-up:** ảnh 32px làm nền mờ trong lúc thumbnail chính tải.
+- **Hiện album sớm:** lần đầu chưa có cache, danh sách album hiện ngay khi có cây thư mục (số ảnh "…"), điền số + ảnh bìa khi tải xong file. Test: `?demo=1&slow=6000`.
+- **Batch thumbnail:** ảnh lỗi/hết hạn được gom 60ms và xin link mới bằng 1 request `POST /batch/drive/v3` (tối đa 50/lần); nếu batch lỗi tự rơi về từng request. (Parser/builder có unit test; chưa kiểm chứng với Drive thật.)
+- **Zip trong Web Worker:** `zipworker.js` + `zipclient.js` — CRC và ghi zip ngoài luồng chính; ghi luồng chuyển `WritableStream`/`ReadableStream` sang worker; không hỗ trợ thì tự rơi về luồng chính. Đã test: zip RAM qua worker, stream transfer, huỷ giữa chừng.
+- **Proxy server tuỳ chọn:** `backend/vietduongphoto-proxy/worker.js` (Cloudflare Worker). Chuyển tiếp `Authorization` của chính người dùng (quyền vẫn do Drive quyết định, proxy không giữ secret), cache metadata 60s **riêng theo từng token**, `alt=media`/batch stream thẳng, CORS chỉ cho `ALLOWED_ORIGIN` (mặc định `https://ividlab.com`). Triển khai: `wrangler deploy` (biến `ALLOWED_ORIGIN`), rồi admin dán URL vào Cài đặt → "Proxy URL". Proxy chưa được deploy thật (cần tài khoản Cloudflare); đã có unit test (yêu cầu token, chặn path lạ, cache tách token).
+- Không làm: Drive *global* batch endpoint (đã ngừng) — dùng endpoint riêng `/batch/drive/v3` ở trên.
