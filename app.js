@@ -1,5 +1,5 @@
 import { createDrive, createStore, createDemo, ADMIN_FALLBACK } from './backend.js';
-import { buildLibrary, applyFilters as filterList, groupMonths, parseHash, thumbAt, signature } from './lib.js';
+import { buildLibrary, applyFilters as filterList, groupDays, parseHash, thumbAt, signature } from './lib.js';
 import { zipToBlob, zipToWritable } from './zipclient.js';
 
 // ============================ Cấu hình mặc định ============================
@@ -38,7 +38,7 @@ const I18N = {
     removed: 'Đã bỏ khỏi album', coverSet: 'Đã đặt ảnh bìa', reqSent: 'Đã gửi yêu cầu cho chủ thư viện', saveErr: 'Không lưu được (Firestore từ chối hoặc chưa bật Google sign-in)',
     zipping: 'Đang nén', zipBig: 'Tổng dung lượng khoảng {mb} MB, tiếp tục?', nothing: 'Chưa chọn ảnh nào', pickOne: 'Chọn đúng 1 ảnh làm bìa',
     subAlbums: 'Album con', photosHere: 'Ảnh trong album', openDrive: 'Đang tải cây thư mục...', selected: 'đã chọn',
-    updated: 'Đã cập nhật thư viện', byYear: 'Theo năm', byMonth: 'Theo tháng', cancelled: 'Đã huỷ',
+    updated: 'Đã cập nhật thư viện', by_day: 'Theo ngày', by_month: 'Theo tháng', by_year: 'Theo năm', cancelled: 'Đã huỷ',
     infoName: 'Tên', infoDate: 'Ngày chụp', infoSize: 'Kích thước', infoFile: 'Dung lượng', infoCam: 'Máy ảnh', infoLens: 'Ống kính', infoExp: 'Thông số',
   },
   en: {
@@ -57,7 +57,7 @@ const I18N = {
     removed: 'Removed from album', coverSet: 'Cover set', reqSent: 'Request sent to the library owner', saveErr: 'Could not save (Firestore denied or Google sign-in not enabled)',
     zipping: 'Zipping', zipBig: 'Total about {mb} MB, continue?', nothing: 'Nothing selected', pickOne: 'Select exactly 1 photo for the cover',
     subAlbums: 'Sub-albums', photosHere: 'Photos in album', openDrive: 'Loading folder tree...', selected: 'selected',
-    updated: 'Library updated', byYear: 'By year', byMonth: 'By month', cancelled: 'Cancelled',
+    updated: 'Library updated', by_day: 'By day', by_month: 'By month', by_year: 'By year', cancelled: 'Cancelled',
     infoName: 'Name', infoDate: 'Taken', infoSize: 'Dimensions', infoFile: 'File size', infoCam: 'Camera', infoLens: 'Lens', infoExp: 'Exposure',
   },
 };
@@ -303,6 +303,7 @@ const applyFilters = (list) => filterList(list, S.filters, S.favs);
 const saveFilters = () => { try { sessionStorage.setItem('vdphoto_filters', JSON.stringify(S.filters)); } catch (e) { /* bỏ qua */ } };
 
 let spy = null;
+const TL_MODES = ['day', 'month', 'year'];
 function renderPhotos(container, list) {
   const items = applyFilters(list);
   S.visible = items;
@@ -310,24 +311,30 @@ function renderPhotos(container, list) {
   if (spy) { spy.disconnect(); spy = null; }
   newRecycler();
   if (!items.length) { container.appendChild(el('p', 'empty-state', t('empty'))); show(tl, false); return; }
-  const { rows, months } = groupMonths(items, lang);
+  const { rows, days } = groupDays(items, lang);
   const box = el('div', S.selectMode ? 'select-mode' : ''); box.id = 'photoBox'; container.appendChild(box);
   let pos = 0; let grid = null;
   const sentinel = el('div', 'more-sentinel');
-  // Scroll-spy: đánh dấu tháng/năm đang xem trên timeline.
+  // Scroll-spy: tô mục timeline tương ứng ngày đang xem (theo ngày / tháng / năm tuỳ chế độ).
   spy = new IntersectionObserver((es) => {
     es.forEach((e) => {
       if (!e.isIntersecting) return;
-      const k = e.target.id.slice(2); const yr = k.split('-')[0];
-      tl.querySelectorAll('a').forEach((a) => a.classList.toggle('active', a.dataset.key === k || (tl.classList.contains('by-year') && a.dataset.year === yr)));
+      const [y, mo, da] = e.target.id.slice(2).split('-'); const mode = tl.dataset.mode;
+      let active = null;
+      tl.querySelectorAll('a').forEach((a) => { const on = mode === 'day' ? a.dataset.key === `${y}-${mo}-${da}` : mode === 'month' ? a.dataset.mkey === `${y}-${mo}` : a.dataset.year === y; a.classList.toggle('active', on); if (on) active = a; });
+      if (active) active.scrollIntoView({ block: 'nearest' });
     });
   }, { rootMargin: '-80px 0px -80% 0px' });
   const more = (n) => {
     const end = Math.min(rows.length, pos + n);
     for (; pos < end; pos++) {
       const r = rows[pos];
-      if (r.h) { const h = el('h2', 'date-header', r.h.title); h.id = 'g-' + r.h.key; box.appendChild(h); spy.observe(h); grid = el('div', 'gallery' + (S.justified ? ' justified' : '')); box.appendChild(grid); }
-      else grid.appendChild(photoCard(r.p));
+      if (r.h) {
+        const h = el('h2', 'date-header', r.h.title); h.id = 'g-' + r.h.key;
+        h.appendChild(el('span', 'day-count', ` · ${r.h.count} ${t('photos')}`));
+        box.appendChild(h); spy.observe(h);
+        grid = el('div', 'gallery' + (S.justified ? ' justified' : '')); box.appendChild(grid);
+      } else grid.appendChild(photoCard(r.p));
     }
     if (pos >= rows.length) { io.disconnect(); sentinel.remove(); }
   };
@@ -335,17 +342,22 @@ function renderPhotos(container, list) {
   container.appendChild(sentinel); io.observe(sentinel); more(PAGE);
   S.loadMore = () => { if (pos >= rows.length) return false; more(PAGE); return true; };
   const jump = (idx, key) => { while (pos <= idx) more(PAGE); document.getElementById('g-' + key).scrollIntoView({ behavior: 'smooth' }); };
-  if (months.length > 1) {
-    const byYear = lsGet('vdphoto_tl', 'month') === 'year' || months.length > 36;
-    tl.classList.toggle('by-year', byYear);
-    const tog = el('button', 'tl-toggle', byYear ? t('byMonth') : t('byYear'));
-    tog.addEventListener('click', () => { lsSet('vdphoto_tl', byYear ? 'month' : 'year'); route(); });
+  if (days.length > 1) {
+    // Mặc định theo ngày; thư viện quá dài (>150 ngày) mà người dùng chưa chọn thì gom theo tháng cho gọn.
+    let mode = lsGet('vdphoto_tl'); if (!TL_MODES.includes(mode)) mode = days.length > 150 ? 'month' : 'day';
+    tl.dataset.mode = mode;
+    const nextMode = TL_MODES[(TL_MODES.indexOf(mode) + 1) % TL_MODES.length];
+    const tog = el('button', 'tl-toggle', t('by_' + nextMode));
+    tog.addEventListener('click', () => { lsSet('vdphoto_tl', nextMode); route(); });
     tl.appendChild(tog);
-    const seenYears = new Set();
-    months.forEach((m, i) => {
-      if (byYear) { if (seenYears.has(m.year)) return; seenYears.add(m.year); }
-      const a = el('a', i === 0 ? 'active' : '', byYear ? String(m.year) : m.label); a.href = '#g-' + m.key; a.dataset.key = m.key; a.dataset.year = String(m.year);
-      a.addEventListener('click', (e) => { e.preventDefault(); jump(m.idx, m.key); });
+    const seen = new Set(); let first = true; let lastMonth = '';
+    days.forEach((d) => {
+      const k = mode === 'day' ? d.key : mode === 'month' ? d.mkey : String(d.year);
+      if (seen.has(k)) return; seen.add(k);
+      if (mode === 'day' && d.mkey !== lastMonth) { lastMonth = d.mkey; tl.appendChild(el('span', 'tl-month', d.mlabel)); } // nhãn tháng chia nhóm các ngày
+      const a = el('a', first ? 'active' : '', mode === 'day' ? d.label : mode === 'month' ? d.mlabel : String(d.year));
+      first = false; a.href = '#g-' + d.key; a.dataset.key = d.key; a.dataset.mkey = d.mkey; a.dataset.year = String(d.year);
+      a.addEventListener('click', (e) => { e.preventDefault(); jump(d.idx, d.key); });
       tl.appendChild(a);
     });
     show(tl);

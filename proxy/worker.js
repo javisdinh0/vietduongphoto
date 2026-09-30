@@ -3,7 +3,7 @@
 // - Cache phản hồi metadata (liệt kê, files.get) 60s theo từng token => nhiều lần mở trang không tốn quota Drive.
 // - alt=media (tải file) và batch được stream thẳng, không cache.
 // - CORS chỉ cho ALLOWED_ORIGIN (mặc định https://ividlab.com). Xem docs/vietduongphoto/README.md để triển khai.
-const DRIVE = 'https://www.googleapis.com';
+const DEFAULT_DRIVE = 'https://www.googleapis.com'; // env.DRIVE_ORIGIN chỉ dùng cho test tích hợp
 const OK_PATH = /^\/(drive\/v3\/files(\/[\w-]+)?|batch\/drive\/v3)$/;
 const TTL = 60;
 
@@ -33,8 +33,8 @@ export default {
 
     const init = { method: req.method, headers: { Authorization: auth } };
     const ct = req.headers.get('Content-Type'); if (ct) init.headers['Content-Type'] = ct;
-    if (req.method === 'POST') init.body = req.body;
-    const res = await fetch(DRIVE + url.pathname + url.search, init);
+    if (req.method === 'POST') { init.body = req.body; init.duplex = 'half'; }
+    const res = await fetch(((env && env.DRIVE_ORIGIN) || DEFAULT_DRIVE) + url.pathname + url.search, init);
     if (key && res.ok) {
       const copy = new Response(res.clone().body, res);
       copy.headers.set('Cache-Control', `private, max-age=${TTL}`);

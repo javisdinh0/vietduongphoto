@@ -1,0 +1,7 @@
+# Triển khai: cd backend/vietduongphoto-proxy && npx wrangler login && npx wrangler deploy
+name = "vdphoto-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://ividlab.com"
