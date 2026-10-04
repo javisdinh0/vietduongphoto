@@ -25,4 +25,4 @@ export const S = {
   loaded: false, partial: false, justified: lsGet('vdphoto_layout') === 'justified',
 };
 
-export const LB = { idx: 0, zoom: false, x: 0, y: 0, drag: null, play: null, pre: [], orig: { url: null, timer: null, ctrl: null }, cache: new Map() };
+export const LB = { idx: 0, zoom: false, x: 0, y: 0, drag: null, play: null, pre: [], orig: { url: null, timer: null, ctrl: null }, cache: new Map(), big: null, bigTimer: null };

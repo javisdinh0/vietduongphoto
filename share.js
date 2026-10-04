@@ -96,7 +96,7 @@ export async function startPublicShare({ token, worker }) {
     const url = (id) => `${worker}/share/${token}/img/${encodeURIComponent(id)}?q`;
     S.photos = m.files.map((f) => ({
       id: f.id, name: f.name, parent: 'share', ext: String(f.ext || 'JPG').toUpperCase(), time: f.time || 0, w: f.w || 0, h: f.h || 0, size: f.size || 0, meta: {},
-      tb: url(f.id), thumbRaw: '', dl: `${worker}/share/${token}/dl/${encodeURIComponent(f.id)}`, onlyRaw: false, raw: null, _renewed: true,
+      tb: url(f.id), thumbRaw: '', dl: `${worker}/share/${token}/dl/${encodeURIComponent(f.id)}`, onlyRaw: false, raw: null, _renewed: Infinity,
     })).sort((a, b) => b.time - a.time);
     S.byId = new Map(S.photos.map((p) => [p.id, p])); S.folders = new Map(); S.root = { id: 'share', children: [], photos: [], deep: [] };
     const get = async (p, signal) => { const res = await fetch(p.dl, { signal }); if (!res.ok) throw new Error('HTTP ' + res.status); return res; };

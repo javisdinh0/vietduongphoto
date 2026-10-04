@@ -86,7 +86,7 @@ export function setThumb(img, p) {
 }
 // Xin link thumbnail mới cho ảnh lỗi: gom các yêu cầu trong 60ms thành 1 request batch.
 const renewQ = new Map(); let renewTimer = null;
-function renewThumb(p) {
+export function renewThumb(p) {
   return new Promise((res) => {
     renewQ.set(p.id, [...(renewQ.get(p.id) || []), res]);
     clearTimeout(renewTimer);
@@ -96,6 +96,14 @@ function renewThumb(p) {
       q.forEach((cbs, id) => cbs.forEach((cb) => cb(links[id] || null)));
     }, 60);
   });
+}
+// Xin link thumbnail mới cho một ảnh, tối đa 1 lần / 10 phút (link hết hạn sau vài giờ). true = đã cập nhật p.tb.
+export async function renewOnce(p) {
+  if (p._renewed && Date.now() - p._renewed < 600000) return false;
+  p._renewed = Date.now();
+  const link = await renewThumb(p);
+  if (!link || !/=s\d+/.test(link)) return false;
+  p.tb = link.replace(/=s\d+.*/, ''); p.thumbRaw = ''; return true;
 }
 // Nội dung thẻ chỉ tồn tại khi thẻ ở gần màn hình; cuộn xa thì gỡ <img> & nút (giữ khung theo tỉ lệ) → DOM nhẹ dù hàng nghìn ảnh.
 function fillCard(item, p) {
@@ -108,11 +116,7 @@ function fillCard(item, p) {
     if (!(p.w && p.h) && img.naturalWidth && img.naturalHeight) { p.w = img.naturalWidth; p.h = img.naturalHeight; setCardRatio(item, p); }
   });
   img.addEventListener('error', async () => {
-    if (!p._renewed) {
-      p._renewed = true;
-      const link = await renewThumb(p);
-      if (link && /=s\d+/.test(link)) { p.tb = link.replace(/=s\d+.*/, ''); img.removeAttribute('srcset'); setThumb(img, p); return; }
-    }
+    if (await renewOnce(p)) { img.removeAttribute('srcset'); setThumb(img, p); return; }
     const d = `https://drive.google.com/uc?id=${p.id}`;
     if (img.src !== d) { img.removeAttribute('srcset'); img.src = d; } else img.classList.add('ok');
   });

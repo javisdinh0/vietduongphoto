@@ -3,12 +3,13 @@ import { LB, S } from './state.js';
 import { thumbAt } from './lib.js';
 import { t, getLang } from './i18n.js';
 import { toggleFav } from './router.js';
+import { renewOnce } from './gallery.js';
 import { enterSelect, updateSelectBar } from './select.js';
 
 const lbImg = () => $('#lightboxImg');
 export function openLightbox(id) { LB.idx = Math.max(0, S.visible.findIndex((p) => p.id === id)); show($('#lightbox')); lbShow(); }
 function closeLightbox() {
-  lbStop(); lbCancelOriginal(); LB.cache.clear(); show($('#lightbox'), false); lbImg().src = ''; LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
+  lbStop(); lbCancelOriginal(); LB.cache.clear(); show($('#lightbox'), false); lbImg().onerror = null; lbImg().src = ''; lbCancelPreviews();
   if (S.route.type === 'photo') location.hash = '#/all';
 }
 function lbStop() { const was = !!LB.play; clearInterval(LB.play); LB.play = null; const b = $('#lbPlay'); b.classList.remove('on'); b.firstElementChild.className = 'fas fa-play'; const p = S.visible[LB.idx]; if (was && p && lbImg().dataset.quality !== 'original') lbLoadOriginal(p); }
@@ -96,23 +97,42 @@ export function loadOriginalForSave() {
   if (!COARSE() || !p || p.onlyRaw || !ORIG_EXT.has(p.ext) || lbImg().dataset.quality === 'original') return false;
   lbLoadOriginal(p, true); return true;
 }
+// Huỷ mọi tải xem trước còn dở (bản lớn + ảnh lân cận) khi chuyển ảnh/đóng: lướt nhanh không để các yêu cầu cũ chặn ảnh hiện tại.
+function lbCancelPreviews() {
+  clearTimeout(LB.bigTimer);
+  if (LB.big) { LB.big.onload = LB.big.onerror = null; LB.big.src = ''; LB.big = null; }
+  LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
+}
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();
   lbReset(); lbCancelOriginal();
-  LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = []; // hủy preload cũ khi lướt nhanh
+  lbCancelPreviews();
   const img = lbImg(); img.dataset.quality = 'preview'; img.alt = p.name;
-  // Tải TUẦN TỰ để ảnh xem trước luôn hiện trước, không tranh băng thông với ảnh nặng (quan trọng trên mạng di động):
-  // 1) ảnh đã có sẵn trong lưới (đã tải/giải mã) hoặc thumbnail 600px: hiện ngay
-  // 2) bản xem trước 2000px  3) xong mới tải ảnh gốc + ảnh lân cận (thumbnail 1200px).
+  // Tải TUẦN TỰ, luôn ưu tiên ảnh xem trước của ảnh HIỆN TẠI (quan trọng trên mạng di động):
+  // 1) ảnh đã có trong lưới hoặc thumbnail 600px (ảnh lân cận ±3 đã được tải sẵn bản 600px): hiện ngay
+  // 2) sau ~150ms (dừng lại, không phải lướt nhanh) mới tải bản lớn 1600/2000px  3) xong mới tải ảnh gốc.
+  const cur = p.id; const still = () => { const q = S.visible[LB.idx]; return !!q && q.id === cur; };
   const card = document.querySelector(`.gallery-item[data-id="${CSS.escape(p.id)}"] img`);
+  img.onerror = null;
   img.src = card && card.complete && card.currentSrc ? card.currentSrc : thumbAt(p, 600);
-  const big = new Image(); const cur = p.id; const full = thumbAt(p, COARSE() ? 1600 : 2000); // điện thoại: 1600px đủ nét, giải mã nhẹ hơn ~36%
-  const still = () => { const q = S.visible[LB.idx]; return !!q && q.id === cur; };
+  // Lỗi tải (link thumbnail hết hạn / bị Google giới hạn tốc độ): xin link mới 1 lần rồi thử lại, nếu không thì thử lại sau 1,5s
+  img.onerror = async () => {
+    img.onerror = null;
+    if (!still() || img.dataset.quality === 'original') return;
+    if (await renewOnce(p)) { if (still()) img.src = thumbAt(p, 600); }
+    else setTimeout(() => { if (still() && img.dataset.quality !== 'original') img.src = thumbAt(p, 600); }, 1500);
+  };
+  preloadNeighbours();
   let started = false;
-  const afterPreview = () => { if (started || !still()) return; started = true; clearTimeout(guard); lbLoadOriginal(p); preloadNeighbours(); };
-  const guard = setTimeout(afterPreview, 6000); // mạng quá chậm cho bản 2000px: vẫn bắt đầu tải ảnh gốc
-  big.onload = () => { if (still() && img.dataset.quality !== 'original') img.src = full; afterPreview(); };
-  big.onerror = afterPreview; big.src = full;
+  const afterPreview = () => { if (started || !still()) return; started = true; clearTimeout(guard); lbLoadOriginal(p); };
+  const guard = setTimeout(afterPreview, 6000); // mạng quá chậm cho bản lớn: vẫn bắt đầu tải ảnh gốc
+  const loadFull = (retry) => {
+    const big = new Image(); LB.big = big; const full = thumbAt(p, COARSE() ? 1600 : 2000); // điện thoại: 1600px đủ nét, giải mã nhẹ hơn
+    big.onload = () => { if (still() && img.dataset.quality !== 'original') img.src = full; afterPreview(); };
+    big.onerror = async () => { if (retry && await renewOnce(p) && still()) loadFull(false); else afterPreview(); };
+    big.src = full;
+  };
+  LB.bigTimer = setTimeout(() => { if (still()) loadFull(true); }, 150);
   $('#lbCount').textContent = `${LB.idx + 1} / ${S.visible.length}  ·  ${p.name}`;
   const dl = $('#downloadBtn'); dl.href = p.dl; dl.download = p.name; dl._item = p; dl.querySelector('span').textContent = `${t('dl')} (${p.onlyRaw ? 'RAW' : p.ext})`; show(dl, !S.share || S.share.allowDownload);
   const dr = $('#downloadRawBtn'); show(dr, !!p.raw); if (p.raw) { dr.href = p.raw.dl; dr.download = p.raw.name; dr._item = p.raw; }
@@ -120,8 +140,9 @@ function lbShow() {
   renderInfo(p);
   if (!p.metaFull && !S.backend.demo) S.backend.drive.meta(p.id).then((m) => { p.metaFull = true; if (m && m.imageMediaMetadata) { p.meta = { ...p.meta, ...m.imageMediaMetadata }; if (S.visible[LB.idx] === p) renderInfo(p); } }).catch(() => {});
 }
+// Ảnh lân cận ±3: chỉ bản 600px (nhẹ, đúng URL dùng cho xem trước tức thì) để bấm mũi tên là hiện ngay.
 function preloadNeighbours() {
-  [S.visible[LB.idx + 1], S.visible[LB.idx - 1]].forEach((n) => { if (n) { const i = new Image(); i.src = thumbAt(n, COARSE() ? 800 : 1200); LB.pre.push(i); } });
+  for (let d = 1; d <= 3; d++) [S.visible[LB.idx + d], S.visible[LB.idx - d]].forEach((n) => { if (n) { const i = new Image(); i.src = thumbAt(n, 600); LB.pre.push(i); } });
 }
 function lbMove(d) { const n = LB.idx + d; if (n < 0 || n >= S.visible.length) return; LB.idx = n; lbShow(); }
 function lbReset() { LB.zoom = false; LB.x = LB.y = 0; lbImg().style.transform = ''; lbImg().classList.remove('zoomed'); }

@@ -86,3 +86,6 @@ Admin tạo link cho **album ảo hoặc thư mục** (nút "Chia sẻ công kha
 
 ## Tiết kiệm bộ nhớ trên điện thoại
 Safari iOS bỏ bớt ảnh đã giải mã khi tab dùng nhiều RAM (biểu hiện: ô trống/mờ khi cuộn, nhất là sau khi mở nhiều ảnh gốc). Trên màn hình cảm ứng (`isCoarse()` trong `util.js`): thumbnail lưới chỉ 400/600px (desktop 400/800/1200px); phạm vi giữ nội dung thẻ ảnh quanh màn hình 1000px (desktop 2500px); thẻ bị gỡ thì gỡ cả `src/srcset` của `<img>` để nhả ảnh; bản xem trước trong lightbox 1600px và ảnh lân cận 800px (desktop 2000/1200px); bộ nhớ đệm ảnh gốc chỉ 1 ảnh / 40 MB (desktop 3 ảnh / 60 MB). Test: `tests/ui/memory.spec.mjs`.
+
+## Chuyển ảnh bằng mũi tên không bị mất xem trước
+Trước đây mỗi lần bấm mũi tên đều bắt đầu tải bản lớn (1600/2000px) của ảnh mới mà không huỷ bản của các ảnh trước, nên khi lướt nhiều các yêu cầu cũ chặn băng thông và ảnh hiện tại không có xem trước; thumbnail hết hạn/bị giới hạn tốc độ cũng làm ảnh trống. Nay: (1) ảnh lân cận ±3 được tải sẵn bản **600px** (đúng URL dùng cho xem trước tức thì); (2) bản lớn chỉ bắt đầu sau khi dừng ~150ms và bị huỷ khi chuyển ảnh/đóng; (3) lỗi tải xem trước/bản lớn thì xin link thumbnail mới (`renewOnce`, tối đa 1 lần / 10 phút mỗi ảnh) rồi thử lại, nếu không có link mới thì thử lại sau 1,5s. Test: `tests/ui/arrows.spec.mjs`.
