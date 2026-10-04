@@ -134,3 +134,13 @@ Lần đầu Cloudflare hỏi đặt tên miền con `workers.dev`; kết quả 
 
 ## Album có một ngày rất nhiều ảnh (bố cục masonry bằng JS)
 Một album có ngày chứa hàng trăm ảnh (vd. 142 ảnh) tạo ra một nhóm khổng lồ; với CSS `column-count` mỗi thay đổi nhỏ của một thẻ (điền/gỡ ảnh, đổi tỉ lệ) khiến trình duyệt tính lại bố cục cả nhóm và cân lại các cột → giật, nhất là ở chỗ chuyển sang ngày kế tiếp. Nay mỗi nhóm ngày là một hàng các cột `.gcol` (flex) và mỗi thẻ được thêm vào **cột đang thấp nhất** (`placeCard` trong `gallery.js`, số cột 4/3/2/1 theo `innerWidth`, dựng lại khi đổi số cột); thẻ cũ không bị đụng tới. Đo (CPU chậm 4x, nhóm 600 ảnh cùng ngày): thời gian bố cục giảm ~3 lần, nhóm thường ~2 lần. Ảnh đọc từ trái sang phải theo thời gian (trước đây chạy dọc hết cột này mới sang cột khác). Đã bỏ `content-visibility: auto` (thừa vì đã có bộ điền/gỡ thẻ, và kích thước tạm của nó có thể làm chiều cao nhảy khi cuộn). Chế độ lưới đều (justified) không đổi. Demo: `?demo=1&many=30&bulkday=1` dồn các ảnh BULK vào một ngày. Test: `tests/ui/masonry.spec.mjs`.
+
+## Zoom bằng 2 ngón trên điện thoại (`zoom.js`)
+Trước đây chỉ có chạm một lần để phóng cố định 2,5x và lăn chuột bật/tắt. Nay lightbox có cử chỉ đầy đủ (Pointer Events, `touch-action: none`):
+- **Chụm 2 ngón** phóng/thu liên tục (1x–6x) tỉ lệ với khoảng cách hai ngón, **giữ điểm giữa hai ngón cố định** và kéo 2 ngón thì ảnh dịch theo; chụm nhỏ hơn 1x rồi nhấc thì tự bật về 1x.
+- **Kéo 1 ngón** khi đã phóng để xem (giới hạn không lố mép; ảnh nhỏ hơn khung nhìn thì giữ ở giữa); nhấc một ngón sau khi chụm thì chuyển mượt sang kéo bằng ngón còn lại (không giật, không bị hiểu là vuốt chuyển ảnh).
+- **Chạm đúp** phóng 2,5x tại điểm chạm, chạm đúp nữa thì về 1x; **một lần chạm không phóng**. Chưa phóng thì **vuốt ngang** chuyển ảnh; chạm vùng nền thì đóng.
+- **Phóng quá ~1,5x** = muốn xem chi tiết → tự tải ảnh gốc (có tiến độ) thay vì chỉ phóng bản 1600/2000px (không phải bấm Tải ảnh).
+- **Chuột / trackpad:** lăn chuột phóng liên tục quanh con trỏ (chụm trackpad = ctrl+wheel), click phóng/thu, kéo chuột để xem (kéo không bật/tắt zoom).
+- Safari iOS: chặn `gesturestart` để không thu phóng cả trang. Không dùng `setPointerCapture` (làm click bị chuyển về vùng nền và đóng nhầm lightbox); `pointermove/up/cancel` nghe ở `window`.
+- Chuyển ảnh thì zoom được đặt lại. Test: `tests/ui/zoom.spec.mjs` (cảm ứng giả lập bằng CDP `Input.dispatchTouchEvent`: lưu ý `touchEnd` nhấc đúng các điểm được liệt kê).
