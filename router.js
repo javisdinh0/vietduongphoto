@@ -1,4 +1,4 @@
-import { lsSet, $, el, show, toast } from './util.js';
+import { lsSet, $, el, show, toast, saveFail } from './util.js';
 import { S } from './state.js';
 import { exitSelect, enterSelect, updateSelectBar } from './select.js';
 import { parseHash, thumbAt } from './lib.js';
@@ -69,8 +69,8 @@ export function route() {
     addCrumb(t('home'), '#/'); addCrumb(a.name);
     viewActionBtn('fa-link', t('share'), copyLink);
     if (S.isAdmin) {
-      viewActionBtn('fa-pen', t('rename'), async () => { const n = prompt(t('renamePrompt'), a.name); if (n && n.trim()) { try { await S.backend.store.updateAlbum(a.id, { name: n.trim() }); a.name = n.trim(); route(); } catch (e) { toast(t('saveErr')); } } });
-      viewActionBtn('fa-trash', t('del'), async () => { if (confirm(t('confirmDel'))) { try { await S.backend.store.deleteAlbum(a.id); S.vAlbums = S.vAlbums.filter((x) => x.id !== a.id); location.hash = '#/'; } catch (e) { toast(t('saveErr')); } } }, 'btn-danger');
+      viewActionBtn('fa-pen', t('rename'), async () => { const n = prompt(t('renamePrompt'), a.name); if (n && n.trim()) { try { await S.backend.store.updateAlbum(a.id, { name: n.trim() }); a.name = n.trim(); route(); } catch (e) { saveFail(e, t('saveErr')); } } });
+      viewActionBtn('fa-trash', t('del'), async () => { if (confirm(t('confirmDel'))) { try { await S.backend.store.deleteAlbum(a.id); S.vAlbums = S.vAlbums.filter((x) => x.id !== a.id); location.hash = '#/'; } catch (e) { saveFail(e, t('saveErr')); } } }, 'btn-danger');
     }
     renderPhotos(view, (a.fileIds || []).map((i) => S.byId.get(i)).filter(Boolean));
   }

@@ -50,7 +50,7 @@ async function afterLogin() {
     if (!DEMO && S.email) lsSet('vd_photo_email', S.email); // nhớ tài khoản để lần sau tự đăng nhập im lặng
     await S.backend.store.signIn(S.token);
     S.isAdmin = S.email === ADMIN_FALLBACK || await S.backend.store.isOwner(S.email);
-  } catch (e) { if (e.message === 'UNAUTH') return showError(e); S.isAdmin = S.email === ADMIN_FALLBACK; }
+  } catch (e) { if (e.message === 'UNAUTH') return showError(e); console.error('[vdphoto] đăng nhập Firebase/kiểm tra owner lỗi (album ảo sẽ không ghi được):', e); S.isAdmin = S.email === ADMIN_FALLBACK; }
   show($('#settingsBtn'), S.isAdmin);
   document.querySelectorAll('.admin-only').forEach((b) => show(b, S.isAdmin));
   await loadLibrary(false);

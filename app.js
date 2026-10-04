@@ -1,4 +1,4 @@
-import { $, DEMO, show, el, toast, lsSet } from './util.js';
+import { $, DEMO, show, el, toast, lsSet, saveFail } from './util.js';
 import { requestLogin, doLogoutState, initAuth, forgetLogin } from './auth.js';
 import { S } from './state.js';
 import { cclear } from './cache.js';
@@ -50,7 +50,7 @@ function bind() {
   });
   $('#selZip').addEventListener('click', downloadZip); $('#selAlbum').addEventListener('click', openAlbumModal);
   $('#selRemove').addEventListener('click', removeFromAlbum); $('#selCover').addEventListener('click', setCover);
-  $('#requestAccessBtn').addEventListener('click', async () => { try { await S.backend.store.sendRequest(S.email, ''); toast(t('reqSent')); } catch (e) { toast(t('saveErr')); } });
+  $('#requestAccessBtn').addEventListener('click', async () => { try { await S.backend.store.sendRequest(S.email, ''); toast(t('reqSent')); } catch (e) { saveFail(e, t('saveErr')); } });
   $('#layoutBtn').addEventListener('click', () => { S.justified = !S.justified; lsSet('vdphoto_layout', S.justified ? 'justified' : 'masonry'); $('#layoutBtn').firstElementChild.className = S.justified ? 'fas fa-table-cells-large' : 'fas fa-table-columns'; route(); });
   $('#layoutBtn').firstElementChild.className = S.justified ? 'fas fa-table-cells-large' : 'fas fa-table-columns';
   $('#zipCancel').addEventListener('click', () => { ZIP.cancel = true; });
