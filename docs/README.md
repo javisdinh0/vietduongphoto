@@ -72,3 +72,4 @@ Nhãn `#lbQuality` ở lightbox báo tiến độ tải ảnh gốc. iOS (Safari
 - Khi **trình chiếu** không tải ảnh gốc (dùng bản xem trước 2000px); dừng trình chiếu thì mới tải ảnh đang xem.
 - Khi bật **Tiết kiệm dữ liệu** của trình duyệt (`navigator.connection.saveData`), nhãn `#lbQuality` hiện "Chạm để tải ảnh gốc" và chỉ tải khi chạm.
 - Lướt nhanh thì huỷ yêu cầu đang chạy (chờ ~0,25s mới bắt đầu tải). Test: `tests/ui/data.spec.mjs`.
+- **Thứ tự tải trong lightbox (để xem trước luôn hiện ngay, nhất là trên mạng di động):** ảnh đã có sẵn trong lưới (hoặc thumbnail 600px) hiện tức thì → bản xem trước 2000px → *sau đó mới* tải ảnh gốc và thumbnail 1200px của ảnh lân cận (không chạy song song để khỏi tranh băng thông; mạng quá chậm thì sau 6s vẫn bắt đầu tải ảnh gốc). Test: `tests/ui/preview.spec.mjs`.

@@ -89,19 +89,29 @@ function lbLoadOriginal(p, manual = false) {
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();
   lbReset(); lbCancelOriginal();
-  const img = lbImg(); img.dataset.quality = 'preview'; img.alt = p.name; img.src = thumbAt(p, 600); // hiện ngay thumbnail đã có, ảnh lớn tải xong thì thay
+  LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = []; // hủy preload cũ khi lướt nhanh
+  const img = lbImg(); img.dataset.quality = 'preview'; img.alt = p.name;
+  // Tải TUẦN TỰ để ảnh xem trước luôn hiện trước, không tranh băng thông với ảnh nặng (quan trọng trên mạng di động):
+  // 1) ảnh đã có sẵn trong lưới (đã tải/giải mã) hoặc thumbnail 600px: hiện ngay
+  // 2) bản xem trước 2000px  3) xong mới tải ảnh gốc + ảnh lân cận (thumbnail 1200px).
+  const card = document.querySelector(`.gallery-item[data-id="${CSS.escape(p.id)}"] img`);
+  img.src = card && card.complete && card.currentSrc ? card.currentSrc : thumbAt(p, 600);
   const big = new Image(); const cur = p.id; const full = thumbAt(p, 2000);
-  big.onload = () => { const q = S.visible[LB.idx]; if (q && q.id === cur && img.dataset.quality !== 'original') img.src = full; }; big.src = full;
-  lbLoadOriginal(p);
+  const still = () => { const q = S.visible[LB.idx]; return !!q && q.id === cur; };
+  let started = false;
+  const afterPreview = () => { if (started || !still()) return; started = true; clearTimeout(guard); lbLoadOriginal(p); preloadNeighbours(); };
+  const guard = setTimeout(afterPreview, 6000); // mạng quá chậm cho bản 2000px: vẫn bắt đầu tải ảnh gốc
+  big.onload = () => { if (still() && img.dataset.quality !== 'original') img.src = full; afterPreview(); };
+  big.onerror = afterPreview; big.src = full;
   $('#lbCount').textContent = `${LB.idx + 1} / ${S.visible.length}  ·  ${p.name}`;
   const dl = $('#downloadBtn'); dl.href = p.dl; dl.download = p.name; dl._item = p; dl.querySelector('span').textContent = `${t('dl')} (${p.onlyRaw ? 'RAW' : p.ext})`;
   const dr = $('#downloadRawBtn'); show(dr, !!p.raw); if (p.raw) { dr.href = p.raw.dl; dr.download = p.raw.name; dr._item = p.raw; }
   $('#lbFav').classList.toggle('on', S.favs.has(p.id)); $('#lbFav').firstElementChild.className = S.favs.has(p.id) ? 'fas fa-heart' : 'far fa-heart';
   renderInfo(p);
   if (!p.metaFull && !S.backend.demo) S.backend.drive.meta(p.id).then((m) => { p.metaFull = true; if (m && m.imageMediaMetadata) { p.meta = { ...p.meta, ...m.imageMediaMetadata }; if (S.visible[LB.idx] === p) renderInfo(p); } }).catch(() => {});
-  // preload ±1 ảnh; hủy preload cũ khi lướt nhanh
-  LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
-  [S.visible[LB.idx + 1], S.visible[LB.idx - 1]].forEach((n) => { if (n) { const i = new Image(); i.src = thumbAt(n, 2000); LB.pre.push(i); } });
+}
+function preloadNeighbours() {
+  [S.visible[LB.idx + 1], S.visible[LB.idx - 1]].forEach((n) => { if (n) { const i = new Image(); i.src = thumbAt(n, 1200); LB.pre.push(i); } });
 }
 function lbMove(d) { const n = LB.idx + d; if (n < 0 || n >= S.visible.length) return; LB.idx = n; lbShow(); }
 function lbReset() { LB.zoom = false; LB.x = LB.y = 0; lbImg().style.transform = ''; lbImg().classList.remove('zoomed'); }
