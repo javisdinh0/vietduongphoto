@@ -10,3 +10,5 @@ export const show = (e, on = true) => e.classList.toggle('hidden', !on);
 export function toast(msg) { const n = $('#toast'); n.textContent = msg; show(n); clearTimeout(toast.t); toast.t = setTimeout(() => show(n, false), 2600); }
 // Lỗi ghi Firestore: log chi tiết ra console và kèm mã lỗi trong toast để dễ chẩn đoán (rules từ chối, chưa đăng nhập Firebase...).
 export function saveFail(e, msg) { console.error('[vdphoto] lưu lỗi:', e); toast(`${msg} [${(e && (e.code || e.message)) || 'unknown'}]`); }
+// Màn hình cảm ứng (điện thoại/máy tính bảng): bộ nhớ hạn chế, dùng cấu hình tiết kiệm.
+export const isCoarse = () => matchMedia('(pointer: coarse)').matches;

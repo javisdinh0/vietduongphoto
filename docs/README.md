@@ -83,3 +83,6 @@ Admin tạo link cho **album ảo hoặc thư mục** (nút "Chia sẻ công kha
 - **Người xem** (`share.js`): chế độ công khai không đọc/gửi bất kỳ token nào của trình duyệt, ẩn đăng nhập/cài đặt/chọn ảnh/thanh dưới; link chỉ-xem không có nút tải và không bao giờ gọi `/dl`. Tham số `w` chỉ chấp nhận https (hoặc localhost khi phát triển) và trang luôn ghi rõ "Chia sẻ qua <host>" để người xem biết nguồn.
 - **Lưu ý bảo mật:** ai có link đều xem được cho tới khi hết hạn/thu hồi (link bị chuyển tiếp vẫn xem được); đặt hiệu lực ngắn cho album nhạy cảm. Thu hồi một link không ảnh hưởng link khác.
 - Test: `tests/share-worker.test.mjs` (KV + Google + Drive giả), `tests/ui/share.spec.mjs` (người xem và hộp thoại admin, Worker giả bằng `page.route`).
+
+## Tiết kiệm bộ nhớ trên điện thoại
+Safari iOS bỏ bớt ảnh đã giải mã khi tab dùng nhiều RAM (biểu hiện: ô trống/mờ khi cuộn, nhất là sau khi mở nhiều ảnh gốc). Trên màn hình cảm ứng (`isCoarse()` trong `util.js`): thumbnail lưới chỉ 400/600px (desktop 400/800/1200px); phạm vi giữ nội dung thẻ ảnh quanh màn hình 1000px (desktop 2500px); thẻ bị gỡ thì gỡ cả `src/srcset` của `<img>` để nhả ảnh; bản xem trước trong lightbox 1600px và ảnh lân cận 800px (desktop 2000/1200px); bộ nhớ đệm ảnh gốc chỉ 1 ảnh / 40 MB (desktop 3 ảnh / 60 MB). Test: `tests/ui/memory.spec.mjs`.

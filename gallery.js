@@ -1,5 +1,5 @@
 import { S, PAGE } from './state.js';
-import { $, el, show, lsGet, lsSet } from './util.js';
+import { $, el, show, lsGet, lsSet, isCoarse } from './util.js';
 import { t, getLang, photoCount } from './i18n.js';
 import { applyFilters as filterList, groupDays, thumbAt } from './lib.js';
 import { route, toggleFav } from './router.js';
@@ -80,8 +80,8 @@ export function renderPhotos(container, list) {
 }
 
 const SIZES = '(max-width:420px) 100vw,(max-width:768px) 50vw,(max-width:1024px) 33vw,25vw';
-function setThumb(img, p) {
-  if (p.tb) { img.srcset = [400, 800, 1200].map((w) => `${thumbAt(p, w)} ${w}w`).join(', '); img.sizes = SIZES; img.src = thumbAt(p, 600); }
+export function setThumb(img, p) {
+  if (p.tb) { img.srcset = (isCoarse() ? [400, 600] : [400, 800, 1200]).map((w) => `${thumbAt(p, w)} ${w}w`).join(', '); img.sizes = SIZES; img.src = thumbAt(p, 600); }
   else img.src = thumbAt(p, 600);
 }
 // Xin link thumbnail mới cho ảnh lỗi: gom các yêu cầu trong 60ms thành 1 request batch.
@@ -128,7 +128,7 @@ function setCardRatio(item, p) {
   const ar = p.w && p.h ? p.w / p.h : 1.5;
   item.style.aspectRatio = `${ar}`; item.style.flex = `${Math.round(ar * 100)} 1 ${Math.round(ar * 200)}px`; // flex dùng cho chế độ lưới đều
 }
-function emptyCard(item) { item._filled = false; item.textContent = ''; item.style.backgroundImage = ''; }
+function emptyCard(item) { item._filled = false; item.querySelectorAll('img').forEach((i) => { i.removeAttribute('srcset'); i.removeAttribute('src'); }); item.textContent = ''; item.style.backgroundImage = ''; }
 let recycler = null;
 function photoCard(p) {
   const item = el('div', 'gallery-item' + (S.selected.has(p.id) ? ' selected' : '')); item.dataset.id = p.id;
@@ -141,5 +141,5 @@ function photoCard(p) {
 }
 function newRecycler() {
   if (recycler) recycler.disconnect();
-  recycler = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) fillCard(e.target, e.target._p); else emptyCard(e.target); }), { rootMargin: '2500px 0px' });
+  recycler = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) fillCard(e.target, e.target._p); else emptyCard(e.target); }), { rootMargin: isCoarse() ? '1000px 0px' : '2500px 0px' });
 }

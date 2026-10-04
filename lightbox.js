@@ -1,4 +1,4 @@
-import { $, show, el, toast } from './util.js';
+import { $, show, el, toast, isCoarse as COARSE } from './util.js';
 import { LB, S } from './state.js';
 import { thumbAt } from './lib.js';
 import { t, getLang } from './i18n.js';
@@ -29,7 +29,6 @@ function setQuality(kind, text) {
 }
 // iOS (Safari/Edge): nhấn giữ "Lưu ảnh" tải lại địa chỉ ảnh bằng tiến trình hệ thống, không đọc được blob: trong bộ nhớ trang
 // ("Không có kết nối internet"). Trên màn hình cảm ứng dùng data: URL (tự chứa dữ liệu) cho ảnh <= 40 MB; desktop dùng blob:.
-const COARSE = () => matchMedia('(pointer: coarse)').matches;
 const toDataUrl = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
 // Nút "Lưu vào Ảnh": Web Share với file gốc (iOS/Android: "Lưu hình ảnh" vào thư viện đúng chất lượng gốc).
 function offerShare(p, blob) {
@@ -49,7 +48,7 @@ const CACHE_MAX = 3; const CACHE_BYTES = 60e6;
 function cachePut(id, blob) {
   LB.cache.delete(id); LB.cache.set(id, blob);
   let total = 0; LB.cache.forEach((b) => { total += b.size; });
-  for (const k of LB.cache.keys()) { if (LB.cache.size <= CACHE_MAX && total <= CACHE_BYTES) break; if (k === id) break; total -= LB.cache.get(k).size; LB.cache.delete(k); }
+  for (const k of LB.cache.keys()) { if (LB.cache.size <= (COARSE() ? 1 : CACHE_MAX) && total <= (COARSE() ? 40e6 : CACHE_BYTES)) break; if (k === id) break; total -= LB.cache.get(k).size; LB.cache.delete(k); }
 }
 function applyOriginal(p, blob, still) {
   const asData = COARSE() && blob.size <= 40e6;
@@ -107,7 +106,7 @@ function lbShow() {
   // 2) bản xem trước 2000px  3) xong mới tải ảnh gốc + ảnh lân cận (thumbnail 1200px).
   const card = document.querySelector(`.gallery-item[data-id="${CSS.escape(p.id)}"] img`);
   img.src = card && card.complete && card.currentSrc ? card.currentSrc : thumbAt(p, 600);
-  const big = new Image(); const cur = p.id; const full = thumbAt(p, 2000);
+  const big = new Image(); const cur = p.id; const full = thumbAt(p, COARSE() ? 1600 : 2000); // điện thoại: 1600px đủ nét, giải mã nhẹ hơn ~36%
   const still = () => { const q = S.visible[LB.idx]; return !!q && q.id === cur; };
   let started = false;
   const afterPreview = () => { if (started || !still()) return; started = true; clearTimeout(guard); lbLoadOriginal(p); preloadNeighbours(); };
@@ -122,7 +121,7 @@ function lbShow() {
   if (!p.metaFull && !S.backend.demo) S.backend.drive.meta(p.id).then((m) => { p.metaFull = true; if (m && m.imageMediaMetadata) { p.meta = { ...p.meta, ...m.imageMediaMetadata }; if (S.visible[LB.idx] === p) renderInfo(p); } }).catch(() => {});
 }
 function preloadNeighbours() {
-  [S.visible[LB.idx + 1], S.visible[LB.idx - 1]].forEach((n) => { if (n) { const i = new Image(); i.src = thumbAt(n, 1200); LB.pre.push(i); } });
+  [S.visible[LB.idx + 1], S.visible[LB.idx - 1]].forEach((n) => { if (n) { const i = new Image(); i.src = thumbAt(n, COARSE() ? 800 : 1200); LB.pre.push(i); } });
 }
 function lbMove(d) { const n = LB.idx + d; if (n < 0 || n >= S.visible.length) return; LB.idx = n; lbShow(); }
 function lbReset() { LB.zoom = false; LB.x = LB.y = 0; lbImg().style.transform = ''; lbImg().classList.remove('zoomed'); }

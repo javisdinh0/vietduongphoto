@@ -1,6 +1,6 @@
 import { $, DEMO, show, el, toast, lsSet, saveFail } from './util.js';
 import { requestLogin, doLogoutState, initAuth, forgetLogin } from './auth.js';
-import { S } from './state.js';
+import { S, LB } from './state.js';
 import { cclear } from './cache.js';
 import { openSettings, saveSettings } from './settings.js';
 import { confirmAlbum, openAlbumModal, removeFromAlbum, setCover } from './albums.js';
@@ -69,4 +69,4 @@ if ('serviceWorker' in navigator && !DEMO && location.protocol === 'https:') nav
 applyI18n(); applyTheme(document.documentElement.getAttribute('data-theme') || 'light'); bind();
 const pub = publicShareRequest(); // link chia sẻ công khai: không đăng nhập
 if (pub) startPublicShare(pub); else initAuth();
-window.__vd = S; // phục vụ debug/test
+window.__vd = S; window.__lb = LB; // phục vụ debug/test
