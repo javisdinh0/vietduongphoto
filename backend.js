@@ -142,8 +142,8 @@ export function createDrive(getToken, apiKey, base = 'https://www.googleapis.com
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.body;
     },
-    async blob(item) {
-      const r = await retryFetch(`${base}/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, auth());
+    async blob(item, signal) {
+      const r = await retryFetch(`${base}/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, { ...auth(), signal });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.blob();
     },

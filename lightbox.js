@@ -8,7 +8,7 @@ import { enterSelect, updateSelectBar } from './select.js';
 const lbImg = () => $('#lightboxImg');
 export function openLightbox(id) { LB.idx = Math.max(0, S.visible.findIndex((p) => p.id === id)); show($('#lightbox')); lbShow(); }
 function closeLightbox() {
-  lbStop(); show($('#lightbox'), false); lbImg().src = ''; LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
+  lbStop(); lbCancelOriginal(); show($('#lightbox'), false); lbImg().src = ''; LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
   if (S.route.type === 'photo') location.hash = '#/all';
 }
 function lbStop() { clearInterval(LB.play); LB.play = null; const b = $('#lbPlay'); b.classList.remove('on'); b.firstElementChild.className = 'fas fa-play'; }
@@ -17,12 +17,37 @@ function lbTogglePlay() {
   const b = $('#lbPlay'); b.classList.add('on'); b.firstElementChild.className = 'fas fa-pause';
   LB.play = setInterval(() => { if (LB.idx >= S.visible.length - 1) LB.idx = -1; lbMove(1); }, 4000);
 }
+// Ảnh gốc: sau khi dừng ở một ảnh ~0,35s thì tải file gốc từ Drive thành blob và gán làm nguồn <img>,
+// nên nhấn giữ / chuột phải "Lưu ảnh" ra đúng file chất lượng gốc (không phải thumbnail). Lướt nhanh thì huỷ, không tải thừa.
+// Định dạng trình duyệt không hiển thị được (HEIC, RAW) hoặc lỗi mạng: giữ bản xem trước.
+const ORIG_EXT = /^(jpe?g|png|webp|gif|bmp)$/i;
+function lbCancelOriginal() {
+  clearTimeout(LB.orig.timer); if (LB.orig.ctrl) LB.orig.ctrl.abort();
+  if (LB.orig.url) URL.revokeObjectURL(LB.orig.url);
+  LB.orig = { url: null, timer: null, ctrl: null };
+}
+function lbLoadOriginal(p) {
+  if (p.onlyRaw || !ORIG_EXT.test(p.ext || '')) return;
+  const ctrl = new AbortController(); LB.orig.ctrl = ctrl;
+  LB.orig.timer = setTimeout(async () => {
+    try {
+      const url = URL.createObjectURL(await S.backend.drive.blob(p, ctrl.signal));
+      const q = S.visible[LB.idx];
+      if (ctrl.signal.aborted || !q || q.id !== p.id) { URL.revokeObjectURL(url); return; }
+      const probe = new Image();
+      probe.onload = () => { if (ctrl.signal.aborted) { URL.revokeObjectURL(url); return; } LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; };
+      probe.onerror = () => URL.revokeObjectURL(url);
+      probe.src = url;
+    } catch (e) { /* giữ bản xem trước */ }
+  }, 350);
+}
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();
-  lbReset();
-  const img = lbImg(); img.alt = p.name; img.src = thumbAt(p, 600); // hiện ngay thumbnail đã có, ảnh lớn tải xong thì thay
+  lbReset(); lbCancelOriginal();
+  const img = lbImg(); img.dataset.quality = 'preview'; img.alt = p.name; img.src = thumbAt(p, 600); // hiện ngay thumbnail đã có, ảnh lớn tải xong thì thay
   const big = new Image(); const cur = p.id; const full = thumbAt(p, 2000);
-  big.onload = () => { const q = S.visible[LB.idx]; if (q && q.id === cur) img.src = full; }; big.src = full;
+  big.onload = () => { const q = S.visible[LB.idx]; if (q && q.id === cur && img.dataset.quality !== 'original') img.src = full; }; big.src = full;
+  lbLoadOriginal(p);
   $('#lbCount').textContent = `${LB.idx + 1} / ${S.visible.length}  ·  ${p.name}`;
   const dl = $('#downloadBtn'); dl.href = p.dl; dl.download = p.name; dl._item = p; dl.querySelector('span').textContent = `${t('dl')} (${p.onlyRaw ? 'RAW' : p.ext})`;
   const dr = $('#downloadRawBtn'); show(dr, !!p.raw); if (p.raw) { dr.href = p.raw.dl; dr.download = p.raw.name; dr._item = p.raw; }

@@ -48,6 +48,9 @@ test('lightbox: mở, ←/→, yêu thích (F) lưu localStorage, Esc đóng', a
   await page.locator('.gallery-item').first().click();
   await expect(page.locator('#lightbox')).toBeVisible();
   await expect(page.locator('#lbCount')).toContainText('1 / 3');
+  // ảnh gốc được tải thành blob (nhấn giữ "Lưu ảnh" ra file gốc)
+  await expect(page.locator('#lightboxImg')).toHaveAttribute('src', /^blob:/);
+  await expect(page.locator('#lightboxImg')).toHaveAttribute('data-quality', 'original');
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('#lbCount')).toContainText('2 / 3');
   await page.keyboard.press('ArrowLeft');
