@@ -1,6 +1,6 @@
 // Service worker VietDuong Photo: mở nhanh + dùng lại thumbnail đã xem. KHÔNG cache Drive API / dữ liệu riêng tư.
 const SHELL = 'vdphoto-shell-v1';
-const IMG = 'vdphoto-img-v1';
+const IMG = 'vdphoto-img-v2'; // v2: xoá cache v1 có thể chứa phản hồi lỗi (opaque) đã bị lưu nhầm
 const IMG_MAX = 600;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -22,9 +22,13 @@ self.addEventListener('fetch', (e) => {
   // Ảnh thumbnail của Google (lh3.googleusercontent.com...): cache-first (cho phép opaque).
   if (req.destination === 'image' && /googleusercontent\.com$/.test(url.hostname)) {
     e.respondWith((async () => {
-      const cache = await caches.open(IMG); const hit = await cache.match(req); if (hit) return hit;
-      const res = await fetch(req);
-      if (res.ok || res.type === 'opaque') { cache.put(req, res.clone()); trim(cache); }
+      const cache = await caches.open(IMG); const hit = await cache.match(req.url); if (hit) return hit;
+      // Tải ở chế độ CORS để biết được mã trạng thái: chỉ lưu khi 200. Phản hồi "opaque" (no-cors) không cho biết lỗi 429/403 nên
+      // trước đây ảnh bị Google giới hạn tốc độ cũng bị lưu và hiện lỗi mãi. CORS bị chặn / mạng lỗi: tải thường và KHÔNG lưu.
+      let res;
+      try { res = await fetch(new Request(req.url, { mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer' })); }
+      catch (err) { return fetch(req); }
+      if (res.ok) { cache.put(req.url, res.clone()); trim(cache); }
       return res;
     })());
     return;

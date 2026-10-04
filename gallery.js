@@ -40,9 +40,9 @@ export function renderPhotos(container, list) {
       if (active) active.scrollIntoView({ block: 'nearest' });
     });
   }, { rootMargin: '-80px 0px -80% 0px' });
-  const more = (n) => {
-    const end = Math.min(rows.length, pos + n);
-    for (; pos < end; pos++) {
+  const addRows = (end, budget) => {
+    const t0 = performance.now();
+    for (; pos < end && (!budget || performance.now() - t0 < budget); pos++) {
       const r = rows[pos];
       if (r.h) {
         const h = el('h2', 'date-header', r.h.title); h.id = 'g-' + r.h.key;
@@ -51,9 +51,17 @@ export function renderPhotos(container, list) {
         grid = el('div', 'gallery' + (S.justified ? ' justified' : '')); box.appendChild(grid);
       } else grid.appendChild(photoCard(r.p));
     }
-    if (pos >= rows.length) { io.disconnect(); sentinel.remove(); }
   };
-  const io = new IntersectionObserver((es) => { if (es[0].isIntersecting) more(PAGE); }, { rootMargin: '800px' });
+  const finish = () => { if (pos >= rows.length) { io.disconnect(); sentinel.remove(); } };
+  const more = (n) => { addRows(Math.min(rows.length, pos + n)); finish(); }; // đồng bộ (lần đầu, nhảy mục timeline, khôi phục vị trí cuộn)
+  let target = 0; let busy = false;
+  const moreSliced = (n) => { // cuộn tới gần cuối: dựng từng lát ~8ms mỗi khung hình để không giật
+    target = Math.min(rows.length, Math.max(target, pos) + n);
+    if (busy) return; busy = true;
+    const step = () => { addRows(target, 8); finish(); if (pos < target) requestAnimationFrame(step); else busy = false; };
+    requestAnimationFrame(step);
+  };
+  const io = new IntersectionObserver((es) => { if (es[0].isIntersecting) moreSliced(PAGE); }, { rootMargin: '800px' });
   container.appendChild(sentinel); io.observe(sentinel); more(PAGE);
   S.loadMore = () => { if (pos >= rows.length) return false; more(PAGE); return true; };
   const jump = (idx, key) => { while (pos <= idx) more(PAGE); document.getElementById('g-' + key).scrollIntoView({ behavior: 'smooth' }); };

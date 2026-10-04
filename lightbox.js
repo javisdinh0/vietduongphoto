@@ -107,7 +107,7 @@ function lbCancelPreviews(all = false) {
 }
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();
-  lbReset(); lbCancelOriginal();
+  lbReset(); lbCancelOriginal(); LB.retry = null;
   lbCancelPreviews();
   const img = lbImg(); img.dataset.quality = 'preview'; img.alt = p.name;
   // Tải TUẦN TỰ, luôn ưu tiên ảnh xem trước của ảnh HIỆN TẠI (quan trọng trên mạng di động):
@@ -130,10 +130,15 @@ function lbShow() {
   const guard = setTimeout(afterPreview, 6000); // mạng quá chậm cho bản lớn: vẫn bắt đầu tải ảnh gốc
   // Mỗi bước thành công thì thay ảnh đang hiện rồi mới sang bước sau (tuần tự, huỷ được): 1000px nhẹ (~100–200 KB) cho ảnh nét ngay,
   // rồi mới tới bản 1600/2000px và cuối cùng là ảnh gốc.
-  const loadStage = (size, next, retry = true) => {
+  const loadStage = (size, next, tries = 0, renewed = false) => {
     const im = new Image(); LB.big = im; const url = thumbAt(p, size);
     im.onload = () => { if (still() && img.dataset.quality !== 'original') img.src = url; next(); };
-    im.onerror = async () => { if (retry && await renewOnce(p) && still()) loadStage(size, next, false); else next(); };
+    im.onerror = async () => {
+      if (!still()) return;
+      if (!renewed && await renewOnce(p) && still()) return loadStage(size, next, tries, true);   // link hết hạn: xin link mới
+      if (tries < 3) { LB.bigTimer = setTimeout(() => { if (still()) loadStage(size, next, tries + 1, true); }, 800 * 2 ** tries); return; } // bị giới hạn tốc độ: chờ rồi thử lại
+      if (img.dataset.quality !== 'original') { LB.retry = () => lbShow(); setQuality('manual', t('previewRetry')); }   // hết lượt: chờ người dùng chạm
+    };
     im.src = url;
   };
   const FULL = COARSE() ? 1600 : 2000; // điện thoại: 1600px đủ nét, giải mã nhẹ hơn
@@ -171,7 +176,11 @@ function renderInfo(p) {
 function lbToggleFav() { const p = S.visible[LB.idx]; if (!p) return; toggleFav(p.id); lbShow(); const c = document.querySelector(`.gallery-item[data-id="${p.id}"] .fav-btn`); if (c) c.classList.toggle('on', S.favs.has(p.id)); }
 function lbShare() { const p = S.visible[LB.idx]; if (!p) return; const u = `${location.origin}${location.pathname}#/p/${encodeURIComponent(p.id)}`; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast(t('copied')), () => prompt(t('share'), u)); }
 export function initLightbox() {
-  const manualLoad = () => { const q = $('#lbQuality'); const p = S.visible[LB.idx]; if (p && q.classList.contains('manual')) lbLoadOriginal(p, true); };
+  const manualLoad = () => {
+    const q = $('#lbQuality'); const p = S.visible[LB.idx]; if (!p || !q.classList.contains('manual')) return;
+    if (LB.retry) { const f = LB.retry; LB.retry = null; f(); return; } // thử lại các bản xem trước
+    lbLoadOriginal(p, true);
+  };
   $('#lbQuality').addEventListener('click', manualLoad);
   $('#lbQuality').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); manualLoad(); } });
   $('#shareFileBtn').addEventListener('click', async (e) => { const f = e.currentTarget._file; if (!f) return; try { await navigator.share({ files: [f] }); } catch (err) { if (err.name !== 'AbortError') toast(t('origFail')); } });

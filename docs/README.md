@@ -125,3 +125,8 @@ Lần đầu Cloudflare hỏi đặt tên miền con `workers.dev`; kết quả 
 - Lỗi CORS trong console: `ALLOWED_ORIGIN` phải đúng `https://javisdinh0.github.io` (không có `/` cuối, không có đường dẫn).
 - Giới hạn gói miễn phí: Workers 100.000 yêu cầu/ngày (mỗi ảnh xem qua link chia sẻ là một yêu cầu), KV 1.000 lượt ghi/ngày (mỗi link tạo/thu hồi ghi vài lần), đủ dùng cho gia đình/bạn bè.
 - Không commit secret: Client secret và `TOKEN_KEY` chỉ đặt bằng `wrangler secret put`.
+
+## Ảnh nét không tải được sau một lúc (giới hạn tốc độ của Google)
+- **Service worker không còn lưu lỗi.** Trước đây thumbnail `googleusercontent.com` được tải ở chế độ no-cors nên phản hồi là "opaque" và cả những ảnh bị Google trả 429/403 (khi tải quá nhiều trong thời gian ngắn) cũng bị lưu vào cache rồi hiện lỗi mãi. Nay tải ở chế độ CORS, **chỉ lưu khi 200**; CORS bị chặn thì tải thường và không lưu. Tên cache đổi sang `vdphoto-img-v2` nên lần kích hoạt đầu tiên tự xoá cache cũ có thể đã nhiễm lỗi. Test: `tests/sw.test.mjs`.
+- **Thử lại có lùi dần.** Bước xem trước 1000px / bản lớn bị lỗi thì: xin link thumbnail mới 1 lần (nếu hết hạn), rồi thử lại sau 0,8s, 1,6s, 3,2s; hết lượt thì nhãn `#lbQuality` hiện "Không tải được ảnh nét. Chạm để thử lại" (chạm để chạy lại cả chuỗi). Chuyển ảnh thì các lượt thử của ảnh cũ bị huỷ. Test: `tests/ui/retry.spec.mjs`.
+- **Danh sách ảnh thêm theo lát thời gian:** khi cuộn tới gần cuối, các hàng ảnh mới được dựng từng lát ≤ 8ms mỗi khung hình thay vì 80 hàng trong một tác vụ (nhảy mục timeline và khôi phục vị trí cuộn vẫn đồng bộ).
