@@ -95,7 +95,7 @@ test('proxy worker: yêu cầu token, chặn path lạ, chuyển tiếp + cache 
   assert.equal((await proxy.fetch(mk('/drive/v3/files'), {}, ctx)).status, 401);
   assert.equal((await proxy.fetch(mk('/drive/v2/about', { Authorization: 'Bearer t' }), {}, ctx)).status, 404);
   const r1 = await proxy.fetch(mk('/drive/v3/files?q=x', { Authorization: 'Bearer t' }), {}, ctx);
-  assert.equal(r1.status, 200); assert.equal(r1.headers.get('Access-Control-Allow-Origin'), 'https://ividlab.com');
+  assert.equal(r1.status, 200); assert.equal(r1.headers.get('Access-Control-Allow-Origin'), 'https://vietduongphoto.name.vn');
   await proxy.fetch(mk('/drive/v3/files?q=x', { Authorization: 'Bearer t' }), {}, ctx); // lần 2 từ cache
   assert.equal(calls.length, 1);
   await proxy.fetch(mk('/drive/v3/files?q=x', { Authorization: 'Bearer OTHER' }), {}, ctx); // token khác không dùng chung cache

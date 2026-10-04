@@ -1,4 +1,4 @@
-# VietDuong Photo
+# VietDuong Photo (`vietduongphoto.name.vn`)
 
 Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn phía client (gốc repo: `index.html`, `app.js`, `backend.js`, `style.css`).
 

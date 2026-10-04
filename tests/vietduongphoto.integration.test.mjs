@@ -126,7 +126,7 @@ test('thumbs: batch lỗi → rơi về từng request', async () => {
 test('proxy worker đứng trước Drive: chạy toàn bộ loadAll qua proxy, cache metadata', async () => {
   const store = new Map();
   globalThis.caches = { default: { match: async (k) => store.get(k.url)?.clone(), put: async (k, r) => { store.set(k.url, r); } } };
-  const env = { DRIVE_ORIGIN: base, ALLOWED_ORIGIN: 'https://ividlab.com' };
+  const env = { DRIVE_ORIGIN: base, ALLOWED_ORIGIN: 'https://vietduongphoto.name.vn' };
   const pserver = http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
     const r = new Request('http://p' + req.url, { method: req.method, headers: req.headers, body: req.method === 'POST' ? Buffer.concat(chunks) : undefined });
