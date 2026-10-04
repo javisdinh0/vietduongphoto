@@ -1,0 +1,52 @@
+rules_version = '2';
+
+// Quy tắc Firestore cho VietDuong Photo (dự án Firebase `ividlab-rficonsole`).
+// Dán tay vào Firebase Console > Firestore > Rules (hoặc `firebase deploy --only firestore:rules`).
+// Chỉ chứa các collection mà ứng dụng này dùng; nếu project còn dùng cho site khác,
+// hãy GỘP các `match` dưới đây vào rules hiện có thay vì ghi đè.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function email() {
+      return request.auth.token.email.lower();
+    }
+    // Admin = email (viết thường) trong config/owners.emails, hoặc email dự phòng (khớp fallback ở backend.js).
+    function isOwner() {
+      return signedIn() && (
+        email() == 'dinhvietdung.vn@gmail.com' ||
+        (exists(/databases/$(database)/documents/config/owners) &&
+         email() in get(/databases/$(database)/documents/config/owners).data.emails)
+      );
+    }
+
+    // Danh sách admin: người đăng nhập đọc được (để app biết có phải admin), chỉ sửa trong Console.
+    match /config/owners {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Album ảo: chỉ lưu id file Drive; quyền xem ảnh vẫn do Drive quyết định.
+    match /photoAlbums/{id} {
+      allow read: if signedIn();
+      allow create: if isOwner()
+        && request.resource.data.name is string && request.resource.data.name.size() <= 200
+        && request.resource.data.fileIds is list;
+      allow update: if isOwner()
+        && request.resource.data.name is string && request.resource.data.name.size() <= 200
+        && request.resource.data.fileIds is list;
+      allow delete: if isOwner();
+    }
+
+    // Yêu cầu truy cập: id tài liệu = email người gửi (chữ thường); chỉ admin xem/xoá.
+    match /photoRequests/{reqEmail} {
+      allow create, update: if signedIn()
+        && reqEmail == email()
+        && request.resource.data.email == email()
+        && request.resource.data.note is string && request.resource.data.note.size() <= 500;
+      allow read, delete: if isOwner();
+    }
+  }
+}
