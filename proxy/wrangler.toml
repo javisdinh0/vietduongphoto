@@ -9,3 +9,9 @@ ALLOWED_ORIGIN = "https://javisdinh0.github.io"
 #   GOOGLE_CLIENT_ID = "<OAuth Web client id>"
 #   npx wrangler secret put GOOGLE_CLIENT_SECRET
 #   npx wrangler secret put TOKEN_KEY      # chuỗi ngẫu nhiên dài, vd: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# Chia sẻ album công khai (tuỳ chọn): tạo KV rồi bỏ comment và điền id
+#   npx wrangler kv namespace create SHARES
+# [[kv_namespaces]]
+# binding = "SHARES"
+# id = "<id từ lệnh trên>"
+# OWNER_EMAILS = "dinhvietdung.vn@gmail.com"   # email được phép tạo link (cách nhau bằng dấu phẩy), đặt trong [vars]

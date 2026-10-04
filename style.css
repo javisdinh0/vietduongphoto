@@ -218,3 +218,16 @@ select, .form-group input { padding: .5rem .8rem; border-radius: 12px; border: 1
 .lb-quality.fail::before { background: #e0705f; }
 .lb-quality.manual { cursor: pointer; }
 .lb-quality.manual::before { background: var(--primary); }
+
+/* chia sẻ công khai */
+.public-share #loginBtn, .public-share #logoutBtn, .public-share #settingsBtn, .public-share #homeLink, .public-share #selectBtn, .public-share #refreshBtn,
+.public-share #bottomNav, .public-share #selectBar, .public-share .view-actions { display: none !important; }
+.share-result { display: flex; gap: .5rem; margin-bottom: 1rem; }
+.share-result input { flex: 1; min-width: 0; padding: .5rem .8rem; border-radius: 12px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-family: inherit; font-size: .85rem; }
+.chk-line { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; cursor: pointer; }
+.share-btns { display: flex; gap: .4rem; flex: none; }
+.req-list .share-none { color: var(--muted); border-bottom: 0; }
+.share-note { margin: 3rem 0 0; font-size: .85rem; color: var(--muted); text-align: center; }
+
+/* chừa chỗ cho dòng thời gian cố định bên phải để nó không đè lên nút thao tác / cột ảnh (chỉ khi nó đang hiện, màn hình rộng) */
+@media (min-width: 769px) { main:has(#timeline:not(.hidden)) { padding-right: 8.5rem; } }

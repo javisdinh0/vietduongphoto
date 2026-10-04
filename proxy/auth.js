@@ -12,12 +12,12 @@ async function aesKey(env) {
   const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.TOKEN_KEY));
   return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
-async function seal(env, text) {
+export async function seal(env, text) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aesKey(env), new TextEncoder().encode(text)));
   return b64(Uint8Array.from([...iv, ...ct]));
 }
-async function open(env, blob) {
+export async function open(env, blob) {
   const u = unb64(blob);
   return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: u.slice(0, 12) }, await aesKey(env), u.slice(12)));
 }

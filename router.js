@@ -2,7 +2,8 @@ import { lsSet, $, el, show, toast, saveFail } from './util.js';
 import { S } from './state.js';
 import { exitSelect, enterSelect, updateSelectBar } from './select.js';
 import { parseHash, thumbAt } from './lib.js';
-import { t, photoCount } from './i18n.js';
+import { t, photoCount, getLang } from './i18n.js';
+import { openShareModal } from './share.js';
 import { renderPhotos } from './gallery.js';
 import { openLightbox } from './lightbox.js';
 
@@ -33,7 +34,7 @@ function setTitle(title, n) {
 }
 // Thanh điều hướng dưới (điện thoại): tab đang xem + nhãn tab cuối (admin: Cài đặt, người khác: Đăng xuất).
 function updateTabs() {
-  show($('#bottomNav'), S.loaded);
+  show($('#bottomNav'), S.loaded && !S.share);
   const home = S.route.type === 'fav' ? 'fav' : 'home';
   document.querySelectorAll('#bottomNav [data-tab]').forEach((a) => a.classList.toggle('active', a.dataset.tab === home));
   $('#tabSelect').classList.toggle('active', S.selectMode);
@@ -41,14 +42,19 @@ function updateTabs() {
   $('#tabMore').firstElementChild.className = S.isAdmin ? 'fas fa-gear' : 'fas fa-right-from-bracket';
 }
 export function route() {
-  S.route = parseHash(location.hash);
+  S.route = S.share ? { type: 'share' } : parseHash(location.hash);
   S.loadMore = null;
   $('#hero').innerHTML = ''; show($('#pageTitles'), false); const view = $('#view'); view.innerHTML = ''; view.className = '';
   const crumbs = $('#crumbs'); crumbs.innerHTML = ''; $('#viewActions').innerHTML = '';
   const addCrumb = (label, href) => { if (crumbs.children.length) crumbs.appendChild(el('span', 'sep', '/')); if (href) { const a = el('a', '', label); a.href = href; crumbs.appendChild(a); } else crumbs.appendChild(el('span', 'cur', label)); };
   const r = S.route;
   const searching = !!S.filters.q.trim();
-  if (r.type === 'home') {
+  if (r.type === 'share') { // chế độ xem công khai qua link chia sẻ
+    setTitle(S.share.name, S.photos.length);
+    if (S.share.expires) $('#pageSub').textContent += ` · ${t('shareExpiresOn')} ${new Date(S.share.expires).toLocaleDateString(getLang() === 'vi' ? 'vi-VN' : 'en-GB')}`;
+    renderPhotos(view, S.photos);
+    view.appendChild(el('p', 'share-note', `${t('shareVia')} ${new URL(S.share.base).host}`));
+  } else if (r.type === 'home') {
     addCrumb(t('home'));
     if (searching) { renderPhotos(view, S.photos); return updateTabs(); }
     renderHero($('#hero'));
@@ -77,12 +83,14 @@ export function route() {
     if (f.photos.length) { if (f.children.length) view.appendChild(el('h3', 'section-title', t('photosHere'))); renderPhotos(view, f.photos); }
     else if (!f.children.length) { view.appendChild(el('p', 'empty-state', t('empty'))); }
     viewActionBtn('fa-link', t('share'), copyLink);
+    if (S.isAdmin) viewActionBtn('fa-share-nodes', t('shareBtn'), openShareModal);
   } else if (r.type === 'valbum') {
     const a = S.vAlbums.find((x) => x.id === r.id);
     if (!a) { addCrumb(t('home'), '#/'); view.appendChild(el('p', 'empty-state', t('notFound'))); return; }
     addCrumb(t('home'), '#/'); addCrumb(a.name); setTitle(a.name, (a.fileIds || []).filter((i) => S.byId.has(i)).length);
     viewActionBtn('fa-link', t('share'), copyLink);
     if (S.isAdmin) {
+      viewActionBtn('fa-share-nodes', t('shareBtn'), openShareModal);
       viewActionBtn('fa-pen', t('rename'), async () => { const n = prompt(t('renamePrompt'), a.name); if (n && n.trim()) { try { await S.backend.store.updateAlbum(a.id, { name: n.trim() }); a.name = n.trim(); route(); } catch (e) { saveFail(e, t('saveErr')); } } });
       viewActionBtn('fa-trash', t('del'), async () => { if (confirm(t('confirmDel'))) { try { await S.backend.store.deleteAlbum(a.id); S.vAlbums = S.vAlbums.filter((x) => x.id !== a.id); location.hash = '#/'; } catch (e) { saveFail(e, t('saveErr')); } } }, 'btn-danger');
     }

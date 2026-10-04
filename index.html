@@ -124,6 +124,22 @@
         </div>
     </div>
 
+    <div id="shareModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header"><h2 data-i18n="shareTitle">Chia sẻ album công khai</h2><span class="close-btn" id="closeShare">&times;</span></div>
+            <div class="modal-body">
+                <p class="help-text" id="shareNote"></p>
+                <div id="shareForm">
+                    <div class="form-group"><label for="shareTtl" data-i18n="shareExpire">Hiệu lực</label><select id="shareTtl"></select></div>
+                    <label class="chk-line"><input type="checkbox" id="shareDl" checked> <span data-i18n="shareAllowDl">Cho phép tải ảnh gốc</span></label>
+                </div>
+                <div id="shareResult" class="share-result hidden"><input id="shareUrl" type="text" readonly aria-label="Link chia sẻ"><button id="shareCopy" class="btn btn-sm" type="button" data-i18n="shareCopy">Sao chép</button></div>
+                <div id="shareListBox" class="form-group"><label data-i18n="shareList">Link đang hoạt động</label><ul id="shareItems" class="req-list"></ul></div>
+            </div>
+            <div class="modal-footer"><button id="shareCreate" class="btn btn-primary" data-i18n="shareCreate">Tạo link</button></div>
+        </div>
+    </div>
+
     <div id="lightbox" class="lightbox hidden">
         <div class="lb-top">
             <span id="lbCount" class="lb-count"></span>

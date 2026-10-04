@@ -65,6 +65,7 @@ function applyOriginal(p, blob, still) {
 }
 // manual=true: người dùng chạm nhãn để tải. Tự động bỏ qua khi đang trình chiếu (dùng bản xem trước) hoặc bật Tiết kiệm dữ liệu.
 function lbLoadOriginal(p, manual = false) {
+  if (S.share && !S.share.allowDownload) { setQuality(''); return; } // link chỉ cho xem: chỉ dùng bản xem trước
   if (p.onlyRaw || !ORIG_EXT.has(p.ext)) { setQuality('preview', t('origPreview')); return; }
   const cached = LB.cache.get(p.id);
   if (!cached && !manual) {
@@ -114,7 +115,7 @@ function lbShow() {
   big.onload = () => { if (still() && img.dataset.quality !== 'original') img.src = full; afterPreview(); };
   big.onerror = afterPreview; big.src = full;
   $('#lbCount').textContent = `${LB.idx + 1} / ${S.visible.length}  ·  ${p.name}`;
-  const dl = $('#downloadBtn'); dl.href = p.dl; dl.download = p.name; dl._item = p; dl.querySelector('span').textContent = `${t('dl')} (${p.onlyRaw ? 'RAW' : p.ext})`;
+  const dl = $('#downloadBtn'); dl.href = p.dl; dl.download = p.name; dl._item = p; dl.querySelector('span').textContent = `${t('dl')} (${p.onlyRaw ? 'RAW' : p.ext})`; show(dl, !S.share || S.share.allowDownload);
   const dr = $('#downloadRawBtn'); show(dr, !!p.raw); if (p.raw) { dr.href = p.raw.dl; dr.download = p.raw.name; dr._item = p.raw; }
   $('#lbFav').classList.toggle('on', S.favs.has(p.id)); $('#lbFav').firstElementChild.className = S.favs.has(p.id) ? 'fas fa-heart' : 'far fa-heart';
   renderInfo(p);
@@ -152,7 +153,7 @@ export function initLightbox() {
     const k = e.key.toLowerCase();
     if (k === 'escape') closeLightbox(); else if (k === 'arrowleft') lbMove(-1); else if (k === 'arrowright') lbMove(1);
     else if (k === 'f') lbToggleFav(); else if (k === 'i') $('#lbPanel').classList.toggle('hidden'); else if (k === ' ') { e.preventDefault(); lbTogglePlay(); }
-    else if (k === 's') { const p = S.visible[LB.idx]; if (p) { if (!S.selectMode) enterSelect(); S.selected.add(p.id); const n = document.querySelector(`.gallery-item[data-id="${p.id}"]`); if (n) n.classList.add('selected'); updateSelectBar(); toast(`${S.selected.size} ${t('selected')}`); } }
+    else if (k === 's' && !S.share) { const p = S.visible[LB.idx]; if (p) { if (!S.selectMode) enterSelect(); S.selected.add(p.id); const n = document.querySelector(`.gallery-item[data-id="${p.id}"]`); if (n) n.classList.add('selected'); updateSelectBar(); toast(`${S.selected.size} ${t('selected')}`); } }
   });
   const stage = $('#lbStage'); const img = lbImg();
   img.addEventListener('click', (e) => { if (LB.moved) { LB.moved = false; return; } LB.zoom = !LB.zoom; if (LB.zoom) { const r = img.getBoundingClientRect(); LB.x = -(e.clientX - r.left - r.width / 2) * 1.5; LB.y = -(e.clientY - r.top - r.height / 2) * 1.5; } lbApply(); });
