@@ -1,8 +1,8 @@
 {
   "name": "VietDuong Photo Gallery",
   "short_name": "VD Photo",
-  "start_url": "/vietduongphoto/",
-  "scope": "/vietduongphoto/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#3b82f6",

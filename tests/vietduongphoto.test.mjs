@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
-import { buildLibrary, mergeDelta, parseBatch, buildBatch, signature, applyFilters, groupMonths, groupDays, parseHash, parseTaken, thumbAt } from '../public/vietduongphoto/lib.js';
-import { crc32, makeZip, ZipStream } from '../public/vietduongphoto/zip.js';
-import proxy from '../backend/vietduongphoto-proxy/worker.js';
+import { buildLibrary, mergeDelta, parseBatch, buildBatch, signature, applyFilters, groupMonths, groupDays, parseHash, parseTaken, thumbAt } from '../lib.js';
+import { crc32, makeZip, ZipStream } from '../zip.js';
+import proxy from '../proxy/worker.js';
 
 const raw = () => ({
   folders: [{ id: 'r', name: '', parent: null }, { id: 'a', name: 'A', parent: 'r' }, { id: 'b', name: 'B', parent: 'a' }],

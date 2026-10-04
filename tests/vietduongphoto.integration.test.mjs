@@ -3,10 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { createDrive } from '../public/vietduongphoto/backend.js';
-import { buildLibrary } from '../public/vietduongphoto/lib.js';
-import { zipToWritable } from '../public/vietduongphoto/zipclient.js';
-import proxy from '../backend/vietduongphoto-proxy/worker.js';
+import { createDrive } from '../backend.js';
+import { buildLibrary } from '../lib.js';
+import { zipToWritable } from '../zipclient.js';
+import proxy from '../proxy/worker.js';
 
 const FOLDER = 'application/vnd.google-apps.folder';
 const day = (n) => new Date(Date.UTC(2025, 0, n)).toISOString();

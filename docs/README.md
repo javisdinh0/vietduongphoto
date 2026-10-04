@@ -1,6 +1,6 @@
-# VietDuong Photo (`ividlab.com/vietduongphoto/`)
+# VietDuong Photo
 
-Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn phía client (`public/vietduongphoto/`: `index.html`, `app.js`, `backend.js`, `style.css`).
+Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn phía client (gốc repo: `index.html`, `app.js`, `backend.js`, `style.css`).
 
 ## Chức năng
 - Đăng nhập Google (GIS, scope `drive.readonly email`); token tự làm mới im lặng trước khi hết hạn.
@@ -19,7 +19,7 @@ Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn 
 Đã thêm `photoAlbums` + `photoRequests` vào `firebase/rficonsole/firestore.rules` — **phải dán tay vào Firebase Console** mới có hiệu lực (không thì album ảo/yêu cầu quyền báo "không lưu được").
 
 ## Test không cần đăng nhập
-`/vietduongphoto/?demo=1` dùng dữ liệu Drive giả + album ảo lưu localStorage (`&guest=1` để xem như khách, không có quyền admin).
+`/?demo=1` dùng dữ liệu Drive giả + album ảo lưu localStorage (`&guest=1` để xem như khách, không có quyền admin).
 
 ## Tối ưu (v2)
 - **Cấu trúc:** `lib.js` (logic thuần: ghép JPG/RAW, lọc, gộp tháng, router, gộp delta), `zip.js` (zip trong RAM + `ZipStream` ghi luồng), `backend.js` (Drive/Firestore/demo), `app.js` (UI). Test: `npm test` (`tests/vietduongphoto.test.mjs`, node:test, không cần trình duyệt).
@@ -37,7 +37,7 @@ Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn 
 - **Hiện album sớm:** lần đầu chưa có cache, danh sách album hiện ngay khi có cây thư mục (số ảnh "…"), điền số + ảnh bìa khi tải xong file. Test: `?demo=1&slow=6000`.
 - **Batch thumbnail:** ảnh lỗi/hết hạn được gom 60ms và xin link mới bằng 1 request `POST /batch/drive/v3` (tối đa 50/lần); nếu batch lỗi tự rơi về từng request. (Parser/builder có unit test; chưa kiểm chứng với Drive thật.)
 - **Zip trong Web Worker:** `zipworker.js` + `zipclient.js` — CRC và ghi zip ngoài luồng chính; ghi luồng chuyển `WritableStream`/`ReadableStream` sang worker; không hỗ trợ thì tự rơi về luồng chính. Đã test: zip RAM qua worker, stream transfer, huỷ giữa chừng.
-- **Proxy server tuỳ chọn:** `backend/vietduongphoto-proxy/worker.js` (Cloudflare Worker). Chuyển tiếp `Authorization` của chính người dùng (quyền vẫn do Drive quyết định, proxy không giữ secret), cache metadata 60s **riêng theo từng token**, `alt=media`/batch stream thẳng, CORS chỉ cho `ALLOWED_ORIGIN` (mặc định `https://ividlab.com`). Triển khai: `wrangler deploy` (biến `ALLOWED_ORIGIN`), rồi admin dán URL vào Cài đặt → "Proxy URL". Proxy chưa được deploy thật (cần tài khoản Cloudflare); đã có unit test (yêu cầu token, chặn path lạ, cache tách token).
+- **Proxy server tuỳ chọn:** `proxy/worker.js` (Cloudflare Worker). Chuyển tiếp `Authorization` của chính người dùng (quyền vẫn do Drive quyết định, proxy không giữ secret), cache metadata 60s **riêng theo từng token**, `alt=media`/batch stream thẳng, CORS chỉ cho `ALLOWED_ORIGIN` (mặc định `https://ividlab.com`). Triển khai: `wrangler deploy` (biến `ALLOWED_ORIGIN`), rồi admin dán URL vào Cài đặt → "Proxy URL". Proxy chưa được deploy thật (cần tài khoản Cloudflare); đã có unit test (yêu cầu token, chặn path lạ, cache tách token).
 - Không làm: Drive *global* batch endpoint (đã ngừng) — dùng endpoint riêng `/batch/drive/v3` ở trên.
 
 ## Timeline theo ngày (v3.1)

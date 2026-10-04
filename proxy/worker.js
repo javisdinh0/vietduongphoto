@@ -2,7 +2,7 @@
 // - Chuyển tiếp header Authorization của CHÍNH người dùng => quyền xem vẫn do Drive quyết định, proxy không giữ khoá/secret nào.
 // - Cache phản hồi metadata (liệt kê, files.get) 60s theo từng token => nhiều lần mở trang không tốn quota Drive.
 // - alt=media (tải file) và batch được stream thẳng, không cache.
-// - CORS chỉ cho ALLOWED_ORIGIN (mặc định https://ividlab.com). Xem docs/vietduongphoto/README.md để triển khai.
+// - CORS chỉ cho ALLOWED_ORIGIN (mặc định https://ividlab.com). Xem docs/README.md để triển khai.
 const DEFAULT_DRIVE = 'https://www.googleapis.com'; // env.DRIVE_ORIGIN chỉ dùng cho test tích hợp
 const OK_PATH = /^\/(drive\/v3\/files(\/[\w-]+)?|batch\/drive\/v3)$/;
 const TTL = 60;

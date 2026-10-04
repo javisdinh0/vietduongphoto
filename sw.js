@@ -30,7 +30,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   // File của chính trang (html/js/css): network-first, mất mạng thì dùng bản đã lưu — luôn ra bản mới sau khi deploy.
-  if (url.origin === location.origin && url.pathname.startsWith('/vietduongphoto/')) {
+  if (url.origin === location.origin) {
     e.respondWith((async () => {
       const cache = await caches.open(SHELL);
       try { const res = await fetch(req); if (res.ok) cache.put(req, res.clone()); return res; }
