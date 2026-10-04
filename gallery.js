@@ -1,5 +1,5 @@
 import { S, PAGE } from './state.js';
-import { $, el, show, lsGet, lsSet, isCoarse } from './util.js';
+import { $, el, show, lsGet, lsSet, isCoarse, perfHook, perfAdd, perfCount } from './util.js';
 import { t, getLang, photoCount } from './i18n.js';
 import { applyFilters as filterList, groupDays, thumbAt } from './lib.js';
 import { route, toggleFav } from './router.js';
@@ -59,7 +59,7 @@ export function renderPhotos(container, list) {
     });
   }, { rootMargin: '-80px 0px -80% 0px' });
   const addRows = (end, budget) => {
-    const t0 = performance.now();
+    const t0 = performance.now(); const from = pos;
     for (; pos < end && (!budget || performance.now() - t0 < budget); pos++) {
       const r = rows[pos];
       if (r.h) {
@@ -71,6 +71,7 @@ export function renderPhotos(container, list) {
       } else if (S.justified) grid.appendChild(photoCard(r.p));
       else placeCard(grid, photoCard(r.p), r.p);
     }
+    if (perfHook.on) { perfAdd('append', performance.now() - t0); perfCount('rowsAdded', pos - from); }
   };
   const finish = () => { if (pos >= rows.length) { io.disconnect(); sentinel.remove(); } };
   const more = (n) => { addRows(Math.min(rows.length, pos + n)); finish(); }; // đồng bộ (lần đầu, nhảy mục timeline, khôi phục vị trí cuộn)
@@ -135,7 +136,7 @@ export async function renewOnce(p) {
 }
 // Nội dung thẻ chỉ tồn tại khi thẻ ở gần màn hình; cuộn xa thì gỡ <img> & nút (giữ khung theo tỉ lệ) → DOM nhẹ dù hàng nghìn ảnh.
 function fillCard(item, p) {
-  if (item._filled) return; item._filled = true;
+  if (item._filled) return; item._filled = true; perfCount('fill');
   // Không còn nền mờ 32px (mỗi thẻ từng gửi 2 yêu cầu ảnh → gấp đôi nguy cơ bị Google giới hạn tốc độ): ô màu --chip làm chỗ giữ trong lúc ảnh chính tải.
   const img = el('img'); img.loading = 'lazy'; img.alt = p.name; img.decoding = 'async';
   img.addEventListener('load', () => {
@@ -160,7 +161,7 @@ function setCardRatio(item, p) {
   const ar = p.w && p.h ? p.w / p.h : 1.5;
   item.style.aspectRatio = `${ar}`; item.style.flex = `${Math.round(ar * 100)} 1 ${Math.round(ar * 200)}px`; // flex dùng cho chế độ lưới đều
 }
-function emptyCard(item) { item._filled = false; item.querySelectorAll('img').forEach((i) => { i.removeAttribute('srcset'); i.removeAttribute('src'); }); item.textContent = ''; item.style.backgroundImage = ''; }
+function emptyCard(item) { item._filled = false; perfCount('empty'); item.querySelectorAll('img').forEach((i) => { i.removeAttribute('srcset'); i.removeAttribute('src'); }); item.textContent = ''; item.style.backgroundImage = ''; }
 let recycler = null; let emptier = null;
 function photoCard(p) {
   const item = el('div', 'gallery-item' + (S.selected.has(p.id) ? ' selected' : '')); item.dataset.id = p.id;

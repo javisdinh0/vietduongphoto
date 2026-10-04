@@ -1,6 +1,6 @@
 import { buildLibrary, signature } from './lib.js';
 import { cfg, S, CACHE_TTL, FULL_REFRESH } from './state.js';
-import { show, $, QS, toast } from './util.js';
+import { show, $, QS, toast, perfMark } from './util.js';
 import { cget, cset } from './cache.js';
 import { fillYears } from './gallery.js';
 import { route } from './router.js';
@@ -26,7 +26,7 @@ export async function loadLibrary(force) {
     const y = window.scrollY;
     applyRaw(raw);
     if (first) { try { S.vAlbums = await S.backend.store.listAlbums(); } catch (e) { S.vAlbums = []; } }
-    S.loaded = true; show($('#app')); fillYears(); route();
+    S.loaded = true; show($('#app')); fillYears(); route(); perfMark('library-ready');
     if (!first) window.scrollTo(0, y);
   };
   if (usable) { await render(cached.raw, true); shown = true; show($('#loader'), false); } else { show($('#loader')); $('#loaderText').textContent = t('openDrive'); show($('#app'), false); }

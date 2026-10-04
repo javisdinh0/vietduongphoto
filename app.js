@@ -1,4 +1,4 @@
-import { $, DEMO, show, el, toast, lsSet, saveFail } from './util.js';
+import { $, DEMO, QS, show, el, toast, lsGet, lsSet, lsDel, saveFail, perfHook } from './util.js';
 import { requestLogin, doLogoutState, initAuth, forgetLogin } from './auth.js';
 import { S, LB } from './state.js';
 import { cclear } from './cache.js';
@@ -66,6 +66,9 @@ try {
   const f = JSON.parse(sessionStorage.getItem('vdphoto_filters') || 'null');
   if (f) { S.filters = { q: f.q || '', year: f.year || '', raw: !!f.raw, fav: !!f.fav }; $('#searchInput').value = S.filters.q; $('#rawOnly').checked = S.filters.raw; $('#favOnly').checked = S.filters.fav; }
 } catch (e) { /* bỏ qua */ }
+// Đo hiệu năng tại chỗ (?perf=1 bật và nhớ, ?perf=0 tắt): perf.js chỉ được nạp khi bật nên người dùng thường không tốn gì.
+if (QS.get('perf') === '0') lsDel('vd_perf'); else if (QS.get('perf') === '1') lsSet('vd_perf', '1');
+if (lsGet('vd_perf') === '1') { perfHook.on = true; import('./perf.js').then((m) => m.initPerf()).catch(() => { perfHook.on = false; }); }
 initPwa();
 applyI18n(); applyTheme(document.documentElement.getAttribute('data-theme') || 'light'); bind();
 const pub = publicShareRequest(); // link chia sẻ công khai: không đăng nhập

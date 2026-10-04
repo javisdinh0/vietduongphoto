@@ -167,3 +167,19 @@ Trước đây trang nạp toàn bộ Font Awesome 6.4.0 từ cdnjs (CSS chặn 
 - **Tắt khẩn cấp:** mở `<trang>/?nosw=1` → gỡ service worker và xoá mọi cache `vdphoto-*`, rồi tải lại. SW chỉ đăng ký trên https (không ở chế độ demo); để thử trên localhost thêm `?sw=1`.
 - **Giới hạn (thật):** ngoại tuyến chỉ mở được *khung* ứng dụng. Thư viện ảnh, đăng nhập Google (script GIS) và Drive API vẫn cần mạng nên mất mạng thì chưa xem được thư viện (chỉ thumbnail đã xem còn trong cache ảnh). Làm được ngoại tuyến thật cần thêm: vào thẳng bằng token còn hạn không chờ GIS, và dùng `vd_photo_email` cho bộ nhớ đệm thư viện khi chưa gọi được Drive.
 - Test: `tests/sw.test.mjs` (logic với cache/fetch giả, có kiểm tra đột biến: bỏ dọn cache / bỏ giới hạn tần suất / bỏ đổi con trỏ đều bị bắt) và `tests/ui/pwa.spec.mjs` (service worker thật trong Chromium: mở lại khi mất mạng, module không đi qua mạng ở lần mở sau, luồng deploy giả → thanh cập nhật → tải lại → dùng bản mới, `?nosw=1`).
+
+## Đo hiệu năng ngay trên điện thoại (`?perf=1`)
+Công cụ đo tại chỗ để lấy **số liệu thật từ iPhone** thay vì suy luận (máy giả lập không tái hiện được các lỗi giật/mờ ảnh trên Safari). `perf.js` chỉ được nạp (import động) khi bật nên **người dùng thường không tốn gì** (các điểm gắn đo `perfMark/perfAdd/perfCount/perfLb` trong `util.js` là hàm kiểm tra một boolean).
+**Cách dùng trên iPhone**
+1. Mở `https://javisdinh0.github.io/vietduongphoto/?perf=1` (được nhớ cho các lần sau; `?perf=0` hoặc nút **Tắt đo** để tắt). Góc trái dưới xuất hiện viên thuốc `60fps · 145MB`.
+2. Dùng app như bình thường theo kịch bản cần đo: cuộn một album dài, kéo kịch đáy album 142 ảnh, mở ảnh rồi bấm mũi tên ~20 ảnh liên tiếp, chụm 2 ngón để zoom.
+3. Chạm viên thuốc → bảng báo cáo → **Gửi** (chia sẻ qua Notes/Tin nhắn) hoặc **Sao chép**, rồi dán cho người phát triển (báo cáo văn bản + JSON). **Đặt lại** để đo lại từ đầu cho từng kịch bản (nên đặt lại trước mỗi kịch bản).
+**Đọc báo cáo**
+- *Khung hình:* trung vị 8 ms ≈ 120 Hz (iPhone Pro), 17 ms ≈ 60 Hz; chế độ Tiết kiệm pin có thể là 30 Hz. Quan trọng nhất là **">50ms" trong dòng "khi cuộn"** (khung bị giật thấy được; tốt nếu dưới ~1%) và "tệ nhất". Khung hình được tách theo: *khi cuộn* (≤150 ms sau sự kiện cuộn), *khi zoom/kéo ảnh* (đang chạm vào lightbox), *lúc yên*.
+- *Khởi động:* FCP/LCP (Safari có thể không báo LCP → n/a), thời điểm trang chủ hiện, thư viện sẵn sàng, số module và dung lượng JS.
+- *Ảnh:* số thumbnail tải/lỗi, thời gian tải ảnh p50/p95 và số ảnh chậm >2 giây (lỗi ảnh là dấu hiệu bị Google giới hạn tốc độ).
+- *Bộ nhớ ảnh (ước tính):* tổng `naturalWidth×naturalHeight×4` của các `<img>` đang có trong trang ≈ bộ nhớ ảnh đã giải mã; **đỉnh** cao (vài trăm MB) là dấu hiệu Safari sắp bỏ bớt ảnh (ô trống/mờ khi cuộn). Kèm số nút DOM, số `<img>` trong lưới và số lần dựng/gỡ thẻ.
+- *Lightbox:* với mỗi lượt xem, thời gian tới khi hiện xem trước, ảnh 1000px, bản lớn, ảnh gốc (p50/max), số lần lỗi.
+- *Dựng:* thời gian chuyển trang và thêm hàng ảnh khi cuộn.
+- **Giới hạn:** Safari không có `longtask` nên không đo được tác vụ dài; bộ nhớ chỉ là ước tính từ kích thước ảnh (không đọc được bộ nhớ thật); thời gian từng ảnh lưới chỉ có `duration` (ảnh khác nguồn gốc không lộ kích thước).
+- Test: `tests/perf.test.mjs` (hàm thống kê/báo cáo thuần, điểm gắn đo tắt thì không tốn gì) và `tests/ui/perf-hud.spec.mjs` (bật/tắt/nhớ, số liệu thật khi cuộn/mở lightbox/zoom, sao chép, đặt lại, không che thanh dưới).

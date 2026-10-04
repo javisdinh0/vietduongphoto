@@ -1,4 +1,4 @@
-import { $, show, el, toast, isCoarse as COARSE } from './util.js';
+import { $, show, el, toast, isCoarse as COARSE, perfLb } from './util.js';
 import { LB, S } from './state.js';
 import { thumbAt } from './lib.js';
 import { t, getLang } from './i18n.js';
@@ -53,14 +53,14 @@ function cachePut(id, blob) {
   for (const k of LB.cache.keys()) { if (LB.cache.size <= (COARSE() ? 1 : CACHE_MAX) && total <= (COARSE() ? 40e6 : CACHE_BYTES)) break; if (k === id) break; total -= LB.cache.get(k).size; LB.cache.delete(k); }
 }
 function applyOriginal(p, blob, still) {
-  const asData = COARSE() && blob.size <= 40e6;
+  const asData = COARSE() && blob.size <= 40e6; perfLb('origBytes', blob.size);
   return (async () => {
     const url = asData ? await toDataUrl(blob) : URL.createObjectURL(blob);
     if (!still()) { if (!asData) URL.revokeObjectURL(url); return; }
     const free = () => { if (!asData) URL.revokeObjectURL(url); };
     const probe = new Image();
-    probe.onload = () => { if (!still()) { free(); return; } if (!asData) LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; setQuality('ready', `${t('origReady')}${mb(p.size)}`); offerShare(p, blob); };
-    probe.onerror = () => { free(); if (still()) setQuality('fail', t('origFail')); };
+    probe.onload = () => { if (!still()) { free(); return; } if (!asData) LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; perfLb('orig'); setQuality('ready', `${t('origReady')}${mb(p.size)}`); offerShare(p, blob); };
+    probe.onerror = () => { free(); perfLb('origFail'); if (still()) setQuality('fail', t('origFail')); };
     probe.src = url;
   })();
 }
@@ -108,6 +108,7 @@ function lbCancelPreviews(all = false) {
 }
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();
+  perfLb('open', p.id);
   lbReset(); lbCancelOriginal(); LB.retry = null;
   lbCancelPreviews();
   const img = lbImg(); img.dataset.quality = 'preview'; img.alt = p.name;
@@ -133,11 +134,12 @@ function lbShow() {
   // rồi mới tới bản 1600/2000px và cuối cùng là ảnh gốc.
   const loadStage = (size, next, tries = 0, renewed = false) => {
     const im = new Image(); LB.big = im; const url = thumbAt(p, size);
-    im.onload = () => { if (still() && img.dataset.quality !== 'original') img.src = url; next(); };
+    im.onload = () => { if (still() && img.dataset.quality !== 'original') img.src = url; if (still()) perfLb('stage', size); next(); };
     im.onerror = async () => {
       if (!still()) return;
       if (!renewed && await renewOnce(p) && still()) return loadStage(size, next, tries, true);   // link hết hạn: xin link mới
       if (tries < 3) { LB.bigTimer = setTimeout(() => { if (still()) loadStage(size, next, tries + 1, true); }, 800 * 2 ** tries); return; } // bị giới hạn tốc độ: chờ rồi thử lại
+      perfLb('stageFail', size);
       if (img.dataset.quality !== 'original') { LB.retry = () => lbShow(); setQuality('manual', t('previewRetry')); }   // hết lượt: chờ người dùng chạm
     };
     im.src = url;

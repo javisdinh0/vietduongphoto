@@ -1,4 +1,4 @@
-import { lsSet, $, el, show, toast, saveFail } from './util.js';
+import { lsSet, $, el, show, toast, saveFail, perfHook, perfAdd, perfMark } from './util.js';
 import { S } from './state.js';
 import { exitSelect, enterSelect, updateSelectBar } from './select.js';
 import { parseHash, thumbAt } from './lib.js';
@@ -41,7 +41,12 @@ function updateTabs() {
   $('#tabMoreLabel').textContent = t(S.isAdmin ? 'tabSettings' : 'logout');
   $('#tabMore i').className = S.isAdmin ? 'fas fa-gear' : 'fas fa-right-from-bracket';
 }
-export function route() {
+export function route() { // bọc để đo thời gian dựng (không tốn gì khi tắt đo)
+  const t0 = perfHook.on ? performance.now() : 0;
+  routeInner();
+  if (perfHook.on) { perfAdd('route', performance.now() - t0); perfMark('first-route'); }
+}
+function routeInner() {
   S.route = S.share ? { type: 'share' } : parseHash(location.hash);
   S.loadMore = null;
   $('#hero').innerHTML = ''; show($('#pageTitles'), false); const view = $('#view'); view.innerHTML = ''; view.className = '';

@@ -9,7 +9,7 @@
 const SHELL_FILES = [
   'index.html', 'style.css', 'icons.css', 'favicon.svg', 'manifest.webmanifest',
   'app.js', 'util.js', 'auth.js', 'state.js', 'cache.js', 'settings.js', 'albums.js', 'i18n.js', 'gallery.js', 'router.js', 'library.js', 'select.js',
-  'zipdl.js', 'lightbox.js', 'share.js', 'backend.js', 'lib.js', 'zipclient.js', 'zoom.js', 'zip.js', 'pwa.js', 'zipworker.js',
+  'zipdl.js', 'lightbox.js', 'share.js', 'backend.js', 'lib.js', 'zipclient.js', 'zoom.js', 'zip.js', 'pwa.js', 'perf.js', 'zipworker.js',
 ];
 self.VDPHOTO_SHELL = SHELL_FILES; // cho test
 const SHELL_PREFIX = 'vdphoto-shell-';
