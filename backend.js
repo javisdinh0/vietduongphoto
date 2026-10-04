@@ -241,16 +241,18 @@ export function createDemo(guest) {
   ];
   const files = [];
   const sizes = [[1600, 1067], [1067, 1600], [1600, 900], [1200, 1200], [1600, 1067], [900, 1600]];
+  const sameDay = new URLSearchParams(location.search).get('bulkday') === '1'; // test: dồn ảnh BULK vào MỘT ngày (nhóm ngày rất lớn)
   const add = (parent, prefix, n, y, m, hue0, start = 0) => {
+    const dayOf = (i) => (sameDay && prefix === 'BULK' ? 15 : 1 + ((i * 3) % 27));
     for (let i = start; i < start + n; i++) {
       const [w, h] = sizes[i % sizes.length];
       const name = `${prefix}_${String(i + 1).padStart(3, '0')}`;
       const uri = svgUri(w, h, (hue0 + i * 23) % 360, name);
-      const d = new Date(y, m - 1, 1 + ((i * 3) % 27), 8 + (i % 10), i % 60);
+      const d = new Date(y, m - 1, dayOf(i), 8 + (i % 10), i % 60);
       files.push({
         id: `${parent}-${i}`, name: name + '.JPG', mimeType: 'image/jpeg', parents: [parent], createdTime: d.toISOString(),
         thumbnailLink: uri, webContentLink: uri, size: String(2000000 + i * 1000),
-        imageMediaMetadata: { width: w, height: h, time: `${y}:${String(m).padStart(2, '0')}:${String(1 + ((i * 3) % 27)).padStart(2, '0')} 09:00:00`,
+        imageMediaMetadata: { width: w, height: h, time: `${y}:${String(m).padStart(2, '0')}:${String(dayOf(i)).padStart(2, '0')} 09:00:00`,
           cameraMake: 'SONY', cameraModel: 'ILCE-7M3', lens: 'FE 35mm F1.8', aperture: 1.8, exposureTime: 0.004, focalLength: 35, isoSpeed: 100 },
       });
       if (i % 3 === 0) files.push({ id: `${parent}-${i}-raw`, name: name + '.ARW', mimeType: 'image/x-sony-arw', parents: [parent], createdTime: d.toISOString(), webContentLink: uri, size: '25000000' });

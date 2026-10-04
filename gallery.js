@@ -17,6 +17,24 @@ export function fillYears() {
 const applyFilters = (list) => filterList(list, S.filters, S.favs);
 export const saveFilters = () => { try { sessionStorage.setItem('vdphoto_filters', JSON.stringify(S.filters)); } catch (e) { /* bỏ qua */ } };
 
+// Bố cục masonry bằng JS thay cho CSS `column-count`: CSS multi-column tính lại bố cục TOÀN BỘ nhóm mỗi lần thêm ảnh (và cân lại cột)
+// nên giật khi cuộn tới cuối album; ở đây mỗi thẻ chỉ được thêm vào cột đang thấp nhất, thẻ cũ không bị đụng tới.
+// Thứ tự ảnh đọc từ trái sang phải theo thời gian (không còn chạy dọc hết cột này mới sang cột kia).
+const colCount = () => { const w = innerWidth; return w <= 420 ? 1 : w <= 768 ? 2 : w <= 1024 ? 3 : 4; };
+function initMasonry(grid) {
+  grid.classList.add('masonry');
+  grid._cols = Array.from({ length: colCount() }, () => { const c = el('div', 'gcol'); c._h = 0; grid.appendChild(c); return c; });
+}
+function placeCard(grid, card, p) {
+  let best = grid._cols[0]; for (const c of grid._cols) if (c._h < best._h) best = c;
+  best.appendChild(card); best._h += 1 / (p.w && p.h ? p.w / p.h : 1.5) + 0.04; // chiều cao tương đối + khe
+}
+let rzTimer = null; let lastCols = colCount();
+window.addEventListener('resize', () => { // đổi số cột (xoay màn hình, đổi cỡ cửa sổ): dựng lại một lần
+  clearTimeout(rzTimer);
+  rzTimer = setTimeout(() => { const n = colCount(); if (n !== lastCols) { lastCols = n; if (S.loaded && document.querySelector('.gallery.masonry')) route(); } }, 250);
+});
+
 let spy = null;
 const TL_MODES = ['day', 'month', 'year'];
 export function renderPhotos(container, list) {
@@ -49,7 +67,9 @@ export function renderPhotos(container, list) {
         h.appendChild(el('span', 'day-count', ` · ${photoCount(r.h.count)}`));
         box.appendChild(h); spy.observe(h);
         grid = el('div', 'gallery' + (S.justified ? ' justified' : '')); box.appendChild(grid);
-      } else grid.appendChild(photoCard(r.p));
+        if (!S.justified) initMasonry(grid);
+      } else if (S.justified) grid.appendChild(photoCard(r.p));
+      else placeCard(grid, photoCard(r.p), r.p);
     }
   };
   const finish = () => { if (pos >= rows.length) { io.disconnect(); sentinel.remove(); } };

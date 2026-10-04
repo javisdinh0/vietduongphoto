@@ -83,8 +83,10 @@ select, .form-group input { padding: .5rem .8rem; border-radius: 12px; border: 1
 .album-virtual .album-name::before { content: "\f07c"; font-family: "Font Awesome 6 Free"; font-weight: 900; margin-right: .5rem; color: var(--primary); font-size: .8rem; }
 
 .date-header { font-family: var(--serif); font-weight: 500; font-size: 1.6rem; margin: 2.2rem 0 .9rem; scroll-margin-top: 80px; }
-.gallery { column-count: 4; column-gap: .8rem; }
-.gallery-item { background: var(--chip); border-radius: 12px; overflow: hidden; cursor: pointer; position: relative; break-inside: avoid; margin-bottom: .8rem; }
+.gallery { display: flex; gap: .8rem; align-items: flex-start; }
+.gcol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .8rem; }
+.gcol .gallery-item { flex: none !important; } /* inline flex của chế độ lưới đều không áp dụng trong cột */
+.gallery-item { background: var(--chip); border-radius: 12px; overflow: hidden; cursor: pointer; position: relative; }
 .gallery-item img { width: 100%; height: 100%; display: block; object-fit: cover; opacity: 0; transition: opacity .3s; }
 .gallery-item img.ok { opacity: 1; }
 .gallery-item-overlay { position: absolute; inset: auto 0 0 0; background: linear-gradient(transparent, rgba(20,17,15,.7)); padding: .9rem .8rem .6rem; color: #fff; opacity: 0; transition: opacity .2s; font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -178,9 +180,8 @@ select, .form-group input { padding: .5rem .8rem; border-radius: 12px; border: 1
     .select-bar { bottom: calc(4.8rem + env(safe-area-inset-bottom)); }
     .toast { bottom: calc(9.5rem + env(safe-area-inset-bottom)); }
 }
-@media (max-width: 1024px) { .gallery { column-count: 3; } }
 @media (max-width: 768px) {
-    .gallery { column-count: 2; column-gap: .5rem; } .gallery-item { margin-bottom: .5rem; border-radius: 10px; }
+    .gallery, .gcol { gap: .5rem; } .gallery-item { border-radius: 10px; }
     .timeline { display: none !important; }
     .lb-nav { width: 2.6rem; height: 2.6rem; }
     .fav-btn { opacity: 1; }
@@ -188,7 +189,6 @@ select, .form-group input { padding: .5rem .8rem; border-radius: 12px; border: 1
     .hero-mosaic { height: 280px; }
     .header-container, main { padding-left: 1rem; padding-right: 1rem; }
 }
-@media (max-width: 420px) { .gallery { column-count: 1; } }
 @media (max-width: 520px) {
     .brand-text { font-size: 1.45rem; } .header-actions .btn span { display: none; }
     .header-container { padding: .6rem 1rem; }
@@ -196,13 +196,11 @@ select, .form-group input { padding: .5rem .8rem; border-radius: 12px; border: 1
     .select-bar { border-radius: 14px; padding: .5rem .6rem .5rem 1rem; }
 }
 
-/* Tối ưu render: bỏ qua layout/paint cho ảnh ngoài màn hình (tỉ lệ đã giữ chỗ bằng aspect-ratio) */
-.gallery-item { content-visibility: auto; contain-intrinsic-size: auto 220px; }
 .tl-toggle { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 10px; font-size: .72rem; cursor: pointer; padding: 3px 8px; margin-bottom: 6px; }
 .tl-toggle:hover { color: var(--text); background: var(--chip); }
 
 .gallery-item { background-size: cover; background-position: center; }
-.gallery.justified { column-count: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.gallery.justified { flex-wrap: wrap; gap: 6px; align-items: stretch; }
 .gallery.justified::after { content: ''; flex-grow: 1000000; }
 .gallery.justified .gallery-item { margin: 0; height: auto; }
 
