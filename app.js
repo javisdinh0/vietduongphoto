@@ -10,7 +10,7 @@ import { route } from './router.js';
 import { loadLibrary } from './library.js';
 import { exitSelect, enterSelect, updateSelectBar } from './select.js';
 import { downloadZip, ZIP } from './zipdl.js';
-import { initLightbox } from './lightbox.js';
+import { initLightbox, loadOriginalForSave } from './lightbox.js';
 
 // ============================ Khởi động ============================
 function bind() {
@@ -41,6 +41,7 @@ function bind() {
     const btn = $(sel); let busy = false;
     btn.addEventListener('click', async (e) => {
       const it = btn._item; if (!it) return;
+      if (sel === '#downloadBtn' && loadOriginalForSave()) { e.preventDefault(); return; } // điện thoại: tải ảnh gốc về trang để giữ-lưu
       e.preventDefault(); if (busy) return; busy = true; btn.classList.add('disabled');
       try {
         const url = URL.createObjectURL(await S.backend.drive.blob(it));

@@ -70,7 +70,9 @@ function lbLoadOriginal(p, manual = false) {
   if (!cached && !manual) {
     if (LB.play) { setQuality(''); return; }
     if (navigator.connection && navigator.connection.saveData) { setQuality('manual', `${t('origManual')}${mb(p.size)}`); return; }
+    if (COARSE()) { setQuality('manual', `${t('origLazy')}${mb(p.size)}`); return; } // điện thoại: tiết kiệm dữ liệu, tải khi người dùng cần lưu
   }
+  if (LB.orig.ctrl && !LB.orig.ctrl.signal.aborted) return; // đang tải rồi
   const ctrl = new AbortController(); LB.orig.ctrl = ctrl;
   LB.orig.timer = setTimeout(async () => {
     const still = () => !ctrl.signal.aborted && S.visible[LB.idx] && S.visible[LB.idx].id === p.id;
@@ -84,7 +86,15 @@ function lbLoadOriginal(p, manual = false) {
       }
       await applyOriginal(p, blob, still);
     } catch (e) { if (still()) { console.warn('[vdphoto] không tải được ảnh gốc:', e); setQuality('fail', t('origFail')); } }
+    finally { if (LB.orig.ctrl === ctrl) LB.orig.ctrl = null; } // cho phép thử lại sau khi xong/lỗi
   }, cached ? 0 : 250);
+}
+// Nút "Tải ảnh" trên điện thoại: nếu ảnh gốc chưa có thì tải nó (có tiến độ) để hiện ra cho giữ-lưu / "Lưu vào Ảnh"
+// thay vì tải file ngay. Trả true = đã xử lý (đang tải ảnh gốc); false = cứ tải file như thường (ảnh gốc đã sẵn sàng, máy tính, RAW...).
+export function loadOriginalForSave() {
+  const p = S.visible[LB.idx];
+  if (!COARSE() || !p || p.onlyRaw || !ORIG_EXT.has(p.ext) || lbImg().dataset.quality === 'original') return false;
+  lbLoadOriginal(p, true); return true;
 }
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();
