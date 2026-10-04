@@ -1,8 +1,11 @@
 // Proxy tuỳ chọn (Cloudflare Worker) đặt trước Google Drive API cho VietDuong Photo.
-// - Chuyển tiếp header Authorization của CHÍNH người dùng => quyền xem vẫn do Drive quyết định, proxy không giữ khoá/secret nào.
+// - Chuyển tiếp header Authorization của CHÍNH người dùng => quyền xem vẫn do Drive quyết định; phần Drive không giữ khoá nào.
+// - /auth/* (tuỳ chọn, cần GOOGLE_CLIENT_SECRET + TOKEN_KEY): đổi code lấy refresh token mã hoá để đăng nhập 1 lần — xem proxy/auth.js.
 // - Cache phản hồi metadata (liệt kê, files.get) 60s theo từng token => nhiều lần mở trang không tốn quota Drive.
 // - alt=media (tải file) và batch được stream thẳng, không cache.
 // - CORS chỉ cho ALLOWED_ORIGIN (mặc định https://javisdinh0.github.io). Xem docs/README.md để triển khai.
+import { handleAuth } from './auth.js';
+
 const DEFAULT_DRIVE = 'https://www.googleapis.com'; // env.DRIVE_ORIGIN chỉ dùng cho test tích hợp
 const OK_PATH = /^\/(drive\/v3\/files(\/[\w-]+)?|batch\/drive\/v3)$/;
 const TTL = 60;
@@ -22,6 +25,7 @@ export default {
     };
     if (req.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
     const url = new URL(req.url);
+    if (url.pathname.startsWith('/auth/')) return cors(await handleAuth(req, env || {}, url, origin));
     const auth = req.headers.get('Authorization');
     if (!auth) return cors(new Response('unauthorized', { status: 401 }));
     if (!OK_PATH.test(url.pathname) || !['GET', 'POST'].includes(req.method)) return cors(new Response('not found', { status: 404 }));
