@@ -25,6 +25,7 @@ async function afterLogin() {
   show($('#loginScreen'), false); show($('#loginBtn'), false); show($('#logoutBtn'));
   try {
     S.email = await S.backend.drive.userEmail();
+    if (!DEMO && S.email) lsSet('vd_photo_email', S.email); // nhớ tài khoản để lần sau tự đăng nhập im lặng
     await S.backend.store.signIn(S.token);
     S.isAdmin = S.email === ADMIN_FALLBACK || await S.backend.store.isOwner(S.email);
   } catch (e) { if (e.message === 'UNAUTH') return showError(e); S.isAdmin = S.email === ADMIN_FALLBACK; }
@@ -56,6 +57,14 @@ export async function initAuth() {
   });
   const tok = lsGet('vd_photo_access_token'); const exp = +lsGet('vd_photo_token_expiry', '0');
   if (tok && Date.now() < exp) onToken(tok, Math.floor((exp - Date.now()) / 1000) + 60);
+  else {
+    // Token hết hạn (đóng tab > 1 giờ): thử xin lại im lặng bằng phiên Google sẵn có; không được thì giữ nút Đăng nhập.
+    const hint = lsGet('vd_photo_email');
+    if (hint) { try { tokenClient.requestAccessToken({ prompt: '', hint }); } catch (e) { /* bỏ qua */ } }
+  }
 }
+
+// Đăng xuất chủ động: quên tài khoản để không tự đăng nhập lại.
+export function forgetLogin() { lsDel('vd_photo_email'); }
 
 export function requestLogin() { if (!tokenClient) return toast('Google chưa sẵn sàng'); tokenClient.requestAccessToken(); }

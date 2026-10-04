@@ -3,7 +3,7 @@
 Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn phía client (repo độc lập, site ở gốc: `index.html`, `app.js`, `backend.js`, `style.css`; không cần build — host tĩnh trên GitHub Pages).
 
 ## Chức năng
-- Đăng nhập Google (GIS, scope `drive.readonly email`); token tự làm mới im lặng trước khi hết hạn.
+- Đăng nhập Google (GIS, scope `drive.readonly email`); token tự làm mới im lặng trước khi hết hạn; email được nhớ (`vd_photo_email`) nên mở lại sau khi token hết hạn sẽ tự xin token im lặng (cần còn phiên Google trong trình duyệt và trình duyệt không chặn popup), "Đăng xuất" thì quên.
 - **Album = thư mục con Drive** (đệ quy, breadcrumb, đếm ảnh, ảnh bìa = ảnh mới nhất). Router hash: `#/`, `#/all`, `#/fav`, `#/f/<folderId>`, `#/v/<albumId>`.
 - **Album tuyển chọn (ảo)** — chỉ admin tạo: chọn nhiều ảnh → "Thêm vào album"; đổi tên/xoá/bỏ ảnh/đặt bìa. Lưu ở Firestore `photoAlbums/{id}` `{name, fileIds[], cover}` (chỉ id file Drive, quyền xem ảnh vẫn do Drive quyết định).
 - Xin quyền: nút "Gửi yêu cầu truy cập" ghi `photoRequests/{email}`; admin xem/xoá trong modal Cài đặt. Vẫn có nút mailto dự phòng.
@@ -22,7 +22,7 @@ Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn 
 `<url-site>/?demo=1` (cục bộ: `npx serve .` hoặc server tĩnh bất kỳ) dùng dữ liệu Drive giả + album ảo lưu localStorage (`&guest=1` để xem như khách, không có quyền admin).
 
 ## Tối ưu (v2)
-- **Cấu trúc:** `lib.js` (logic thuần: ghép JPG/RAW, lọc, gộp tháng, router, gộp delta), `zip.js` (zip trong RAM + `ZipStream` ghi luồng), `backend.js` (Drive/Firestore/demo), `app.js` (UI). Test: `npm test` (`tests/vietduongphoto.test.mjs`, node:test, không cần trình duyệt).
+- **Cấu trúc:** `lib.js` (logic thuần: ghép JPG/RAW, lọc, gộp tháng, router, gộp delta), `zip.js` (zip trong RAM + `ZipStream` ghi luồng), `backend.js` (Drive/Firestore/demo), UI chia module: `util.js` (DOM/localStorage/toast), `i18n.js`, `cache.js` (IndexedDB), `state.js` (state + cấu hình `cfg`), `auth.js`, `library.js` (tải + SWR), `router.js`, `gallery.js` (render ảnh, recycling, timeline), `select.js`, `zipdl.js`, `albums.js`, `lightbox.js`, `settings.js`, `app.js` (nối sự kiện + khởi động). Test: `npm test` (`tests/vietduongphoto.test.mjs`, node:test, không cần trình duyệt).
 - **Tải nhanh:** cache IndexedDB kiểu stale-while-revalidate — có cache là vẽ ngay (kể cả cũ), cache < 5 phút thì không hỏi Drive; cũ hơn thì đồng bộ nền **tăng dần** (`modifiedTime > lần trước`, kể cả file vào thùng rác), tải đủ lại sau 24h; đổi dữ liệu thì tự vẽ lại + toast. Truy vấn danh sách chỉ lấy `width,height,time`; EXIF đầy đủ lấy khi mở lightbox. Truy vấn cùng tầng chạy song song (3 luồng), backoff luỹ thừa cho 429/5xx/403 rateLimit.
 - **Ảnh:** `srcset` 400/800/1200, tự xin link thumbnail mới khi link hết hạn, hiện thumbnail ngay trong lightbox rồi thay ảnh lớn, hủy preload cũ khi lướt nhanh, `content-visibility:auto` cho ảnh ngoài màn hình.
 - **Zip:** Chrome/Edge desktop ghi luồng ra file (File System Access API, RAM không phình, file >4GB không hỗ trợ); trình duyệt khác gom trong RAM với 3 luồng + thử lại. Có nút huỷ. `?nopicker=1` ép dùng đường RAM để test.

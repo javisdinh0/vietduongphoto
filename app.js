@@ -1,5 +1,5 @@
 import { $, DEMO, show, el, toast, lsSet } from './util.js';
-import { requestLogin, doLogoutState, initAuth } from './auth.js';
+import { requestLogin, doLogoutState, initAuth, forgetLogin } from './auth.js';
 import { S } from './state.js';
 import { cclear } from './cache.js';
 import { openSettings, saveSettings } from './settings.js';
@@ -17,7 +17,7 @@ function bind() {
   $('#loginBtn').addEventListener('click', requestLogin); $('#loginScreenBtn').addEventListener('click', requestLogin);
   $('#logoutBtn').addEventListener('click', () => {
     if (S.token && !DEMO && window.google) google.accounts.oauth2.revoke(S.token, () => {});
-    S.backend.store.signOut(); cclear(); doLogoutState(); $('#view').innerHTML = '';
+    S.backend.store.signOut(); cclear(); forgetLogin(); doLogoutState(); $('#view').innerHTML = '';
     if (DEMO) location.href = location.pathname;
   });
   $('#settingsBtn').addEventListener('click', openSettings); $('#closeSettings').addEventListener('click', () => show($('#settingsModal'), false));
