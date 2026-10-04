@@ -13,7 +13,7 @@ const FB_CONFIG = {
 export const ADMIN_FALLBACK = 'dinhvietdung.vn@gmail.com';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 // Danh sách chỉ lấy trường nhẹ; EXIF đầy đủ lấy riêng khi mở lightbox (drive.meta).
-const LIST_FIELDS = 'nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,thumbnailLink,webContentLink,size,parents,imageMediaMetadata(width,height,time))';
+const LIST_FIELDS = 'nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,thumbnailLink,webContentLink,size,parents,imageMediaMetadata(width,height,rotation,time))';
 const FOLDER_FIELDS = 'nextPageToken,files(id,name,parents)';
 
 const chunks = (a, n) => { const r = []; for (let i = 0; i < a.length; i += n) r.push(a.slice(i, i + n)); return r; };

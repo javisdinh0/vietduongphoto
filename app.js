@@ -387,7 +387,11 @@ function fillCard(item, p) {
   if (item._filled) return; item._filled = true;
   if (p.tb) item.style.backgroundImage = `url("${thumbAt(p, 32)}")`; // blur-up: ảnh 32px phóng lớn làm nền trong lúc ảnh chính tải
   const img = el('img'); img.loading = 'lazy'; img.alt = p.name; img.decoding = 'async';
-  img.addEventListener('load', () => img.classList.add('ok'));
+  img.addEventListener('load', () => {
+    img.classList.add('ok');
+    // Thiếu metadata kích thước: lấy tỉ lệ thật từ thumbnail vừa tải để khung không cắt ảnh
+    if (!(p.w && p.h) && img.naturalWidth && img.naturalHeight) { p.w = img.naturalWidth; p.h = img.naturalHeight; setCardRatio(item, p); }
+  });
   img.addEventListener('error', async () => {
     if (!p._renewed) {
       p._renewed = true;
@@ -405,12 +409,15 @@ function fillCard(item, p) {
   fav.addEventListener('click', (e) => { e.stopPropagation(); toggleFav(p.id); fav.classList.toggle('on', S.favs.has(p.id)); });
   item.appendChild(fav); item.appendChild(el('div', 'gallery-item-overlay', p.name));
 }
+function setCardRatio(item, p) {
+  const ar = p.w && p.h ? p.w / p.h : 1.5;
+  item.style.aspectRatio = `${ar}`; item.style.flex = `${Math.round(ar * 100)} 1 ${Math.round(ar * 200)}px`; // flex dùng cho chế độ lưới đều
+}
 function emptyCard(item) { item._filled = false; item.textContent = ''; item.style.backgroundImage = ''; }
 let recycler = null;
 function photoCard(p) {
   const item = el('div', 'gallery-item' + (S.selected.has(p.id) ? ' selected' : '')); item.dataset.id = p.id;
-  const ar = p.w && p.h ? p.w / p.h : 1.5;
-  item.style.aspectRatio = `${ar}`; item.style.flex = `${Math.round(ar * 100)} 1 ${Math.round(ar * 200)}px`; // flex dùng cho chế độ lưới đều
+  setCardRatio(item, p);
   item._p = p;
   item.addEventListener('click', () => { if (S.selectMode) { toggleSelect(p.id, item); } else openLightbox(p.id); });
   fillCard(item, p);
@@ -530,8 +537,8 @@ function lbShow() {
   const big = new Image(); const cur = p.id; const full = thumbAt(p, 2000);
   big.onload = () => { const q = S.visible[LB.idx]; if (q && q.id === cur) img.src = full; }; big.src = full;
   $('#lbCount').textContent = `${LB.idx + 1} / ${S.visible.length}  ·  ${p.name}`;
-  const dl = $('#downloadBtn'); dl.href = p.dl; dl.download = p.name; dl.querySelector('span').textContent = `${t('dl')} (${p.onlyRaw ? 'RAW' : p.ext})`;
-  const dr = $('#downloadRawBtn'); show(dr, !!p.raw); if (p.raw) { dr.href = p.raw.dl; dr.download = p.raw.name; }
+  const dl = $('#downloadBtn'); dl.href = p.dl; dl.download = p.name; dl._item = p; dl.querySelector('span').textContent = `${t('dl')} (${p.onlyRaw ? 'RAW' : p.ext})`;
+  const dr = $('#downloadRawBtn'); show(dr, !!p.raw); if (p.raw) { dr.href = p.raw.dl; dr.download = p.raw.name; dr._item = p.raw; }
   $('#lbFav').classList.toggle('on', S.favs.has(p.id)); $('#lbFav').firstElementChild.className = S.favs.has(p.id) ? 'fas fa-heart' : 'far fa-heart';
   renderInfo(p);
   if (!p.metaFull && !S.backend.demo) S.backend.drive.meta(p.id).then((m) => { p.metaFull = true; if (m && m.imageMediaMetadata) { p.meta = { ...p.meta, ...m.imageMediaMetadata }; if (S.visible[LB.idx] === p) renderInfo(p); } }).catch(() => {});
@@ -616,6 +623,20 @@ function bind() {
   $('#selectBtn').addEventListener('click', () => (S.selectMode ? exitSelect() : enterSelect()));
   $('#selCancel').addEventListener('click', exitSelect);
   $('#selAll').addEventListener('click', () => { S.visible.forEach((p) => S.selected.add(p.id)); document.querySelectorAll('.gallery-item').forEach((n) => n.classList.add('selected')); updateSelectBar(); });
+  // Tải thẳng về máy (kể cả điện thoại): attribute `download` bị bỏ qua với link khác origin → tự fetch blob rồi lưu, không mở tab mới.
+  ['#downloadBtn', '#downloadRawBtn'].forEach((sel) => {
+    const btn = $(sel); let busy = false;
+    btn.addEventListener('click', async (e) => {
+      const it = btn._item; if (!it) return;
+      e.preventDefault(); if (busy) return; busy = true; btn.classList.add('disabled');
+      try {
+        const url = URL.createObjectURL(await S.backend.drive.blob(it));
+        const a = el('a'); a.href = url; a.download = it.name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } catch (err) { toast(t('dlFail') || 'Không tải được, thử lại'); }
+      busy = false; btn.classList.remove('disabled');
+    });
+  });
   $('#selZip').addEventListener('click', downloadZip); $('#selAlbum').addEventListener('click', openAlbumModal);
   $('#selRemove').addEventListener('click', removeFromAlbum); $('#selCover').addEventListener('click', setCover);
   $('#requestAccessBtn').addEventListener('click', async () => { try { await S.backend.store.sendRequest(S.email, ''); toast(t('reqSent')); } catch (e) { toast(t('saveErr')); } });

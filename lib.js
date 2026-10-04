@@ -46,7 +46,8 @@ export function buildLibrary(raw, rootId) {
     photos.push({
       id: f.id, name: f.name, parent: g.parent, ext: (nm ? nm[2] : 'JPG').toUpperCase().replace('JPEG', 'JPG'),
       time: parseTaken(md.time) || (f.createdTime ? new Date(f.createdTime).getTime() : 0),
-      w: md.width || 0, h: md.height || 0, size: +f.size || 0, meta: md,
+      // rotation (số góc 90° cần xoay): 1/3 → thumbnail đã xoay ngang↔dọc so với width/height gốc
+      ...((md.rotation | 0) % 2 ? { w: md.height || 0, h: md.width || 0 } : { w: md.width || 0, h: md.height || 0 }), size: +f.size || 0, meta: md,
       tb: scaled ? link.replace(/=s\d+.*/, '') : '', thumbRaw: link && !scaled ? link : '',
       dl: f.webContentLink || driveDl(f.id), onlyRaw: !g.std,
       raw: g.std && g.raw ? { id: g.raw.id, name: g.raw.name, dl: g.raw.webContentLink || driveDl(g.raw.id), size: +g.raw.size || 0 } : null,
