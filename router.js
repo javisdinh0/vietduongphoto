@@ -2,7 +2,7 @@ import { lsSet, $, el, show, toast, saveFail } from './util.js';
 import { S } from './state.js';
 import { exitSelect, enterSelect, updateSelectBar } from './select.js';
 import { parseHash, thumbAt } from './lib.js';
-import { t } from './i18n.js';
+import { t, photoCount } from './i18n.js';
 import { renderPhotos } from './gallery.js';
 import { openLightbox } from './lightbox.js';
 
@@ -29,7 +29,7 @@ function restoreScroll(y) {
 
 // Tiêu đề lớn của trang (album/thư mục/tất cả/yêu thích) + số ảnh; trang chủ không dùng.
 function setTitle(title, n) {
-  $('#pageTitle').textContent = title; $('#pageSub').textContent = `${n} ${t('photos')}`; show($('#pageTitles'));
+  $('#pageTitle').textContent = title; $('#pageSub').textContent = photoCount(n); show($('#pageTitles'));
 }
 // Thanh điều hướng dưới (điện thoại): tab đang xem + nhãn tab cuối (admin: Cài đặt, người khác: Đăng xuất).
 function updateTabs() {
@@ -93,7 +93,7 @@ export function route() {
 // Phần giới thiệu ở trang chủ: tiêu đề + mosaic 3 ảnh mới nhất (ẩn mosaic khi chưa đủ ảnh).
 function renderHero(container) {
   const hero = el('div', 'hero'); const text = el('div', 'hero-text');
-  text.appendChild(el('div', 'eyebrow', `${t('heroEyebrow')} · ${S.photos.length} ${t('photos')}`));
+  text.appendChild(el('div', 'eyebrow', `${t('heroEyebrow')} · ${photoCount(S.photos.length)}`));
   const h = el('h2', 'hero-title'); h.append(t('heroA'), el('i', '', t('heroB')), t('heroC')); text.appendChild(h);
   text.appendChild(el('p', 'hero-desc', t('heroDesc')));
   hero.appendChild(text);
@@ -117,7 +117,7 @@ function renderAlbumGrid(container, cards, title) {
     const card = el('div', 'album-card' + (c.virtual ? ' album-virtual' : ''));
     const cover = el('div', 'album-cover');
     if (c.cover) { const img = el('img'); img.loading = 'lazy'; img.src = thumbAt(c.cover, 400); img.alt = c.name; cover.appendChild(img); } else cover.innerHTML = '<i class="fas fa-images"></i>';
-    const info = el('div', 'album-info'); info.appendChild(el('div', 'album-name', c.name)); info.appendChild(el('div', 'album-count', S.partial ? '…' : `${c.count} ${t('photos')}`));
+    const info = el('div', 'album-info'); info.appendChild(el('div', 'album-name', c.name)); info.appendChild(el('div', 'album-count', S.partial ? '…' : photoCount(c.count)));
     card.append(cover, info); card.addEventListener('click', () => { location.hash = c.href; });
     grid.appendChild(card);
   });

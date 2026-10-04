@@ -1,6 +1,6 @@
 import { S, PAGE } from './state.js';
 import { $, el, show, lsGet, lsSet } from './util.js';
-import { t, getLang } from './i18n.js';
+import { t, getLang, photoCount } from './i18n.js';
 import { applyFilters as filterList, groupDays, thumbAt } from './lib.js';
 import { route, toggleFav } from './router.js';
 import { toggleSelect } from './select.js';
@@ -46,7 +46,7 @@ export function renderPhotos(container, list) {
       const r = rows[pos];
       if (r.h) {
         const h = el('h2', 'date-header', r.h.title); h.id = 'g-' + r.h.key;
-        h.appendChild(el('span', 'day-count', ` · ${r.h.count} ${t('photos')}`));
+        h.appendChild(el('span', 'day-count', ` · ${photoCount(r.h.count)}`));
         box.appendChild(h); spy.observe(h);
         grid = el('div', 'gallery' + (S.justified ? ' justified' : '')); box.appendChild(grid);
       } else grid.appendChild(photoCard(r.p));

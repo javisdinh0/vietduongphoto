@@ -66,3 +66,9 @@ Dưới 768px có thanh điều hướng dưới (Thư viện / Yêu thích / Ch
 
 ## Lưu ảnh gốc trên điện thoại
 Nhãn `#lbQuality` ở lightbox báo tiến độ tải ảnh gốc. iOS (Safari/Edge) không lưu được ảnh có địa chỉ `blob:` khi nhấn giữ ("Không có kết nối internet"), nên trên màn hình cảm ứng ảnh gốc (<= 40 MB) được gán bằng `data:` URL; ngoài ra có nút **Lưu vào Ảnh** dùng Web Share với file gốc (hiện khi trình duyệt hỗ trợ `navigator.canShare({files})`), cách đáng tin nhất để vào thư viện Ảnh đúng chất lượng gốc. Nút **Tải ảnh** luôn tải file gốc về Tệp. Test: `tests/ui/save.spec.mjs`.
+
+## Tiết kiệm dữ liệu khi xem ảnh gốc
+- Ảnh gốc vừa xem được giữ trong bộ nhớ đệm nhỏ (tối đa 3 ảnh / 60 MB, xoá khi đóng lightbox) nên lùi/tiến không tải lại.
+- Khi **trình chiếu** không tải ảnh gốc (dùng bản xem trước 2000px); dừng trình chiếu thì mới tải ảnh đang xem.
+- Khi bật **Tiết kiệm dữ liệu** của trình duyệt (`navigator.connection.saveData`), nhãn `#lbQuality` hiện "Chạm để tải ảnh gốc" và chỉ tải khi chạm.
+- Lướt nhanh thì huỷ yêu cầu đang chạy (chờ ~0,25s mới bắt đầu tải). Test: `tests/ui/data.spec.mjs`.

@@ -18,7 +18,7 @@ const I18N = {
     removed: 'Đã bỏ khỏi album', coverSet: 'Đã đặt ảnh bìa', reqSent: 'Đã gửi yêu cầu cho chủ thư viện', saveErr: 'Không lưu được (Firestore từ chối hoặc chưa bật Google sign-in)',
     zipping: 'Đang nén', zipBig: 'Tổng dung lượng khoảng {mb} MB, tiếp tục?', nothing: 'Chưa chọn ảnh nào', pickOne: 'Chọn đúng 1 ảnh làm bìa',
     subAlbums: 'Album con', photosHere: 'Ảnh trong album', openDrive: 'Đang tải cây thư mục...', selected: 'đã chọn',
-    updated: 'Đã cập nhật thư viện', tabSettings: 'Cài đặt', saveToPhotos: 'Lưu vào Ảnh', origLoading: 'Đang tải ảnh gốc', origReady: 'Ảnh gốc, giữ ảnh để lưu', origFail: 'Không tải được ảnh gốc, hãy dùng nút Tải ảnh', origPreview: 'Bản xem trước, dùng nút Tải để lấy file gốc', heroEyebrow: 'Thư viện ảnh', heroA: 'Những khoảnh khắc đáng nhớ, ', heroB: 'gọn gàng', heroC: ' một chỗ', heroDesc: 'Ảnh được xếp theo từng chuyến đi và từng ngày chụp. Chỉ cần chọn album là xem, tải hoặc chia sẻ.', by_day: 'Theo ngày', by_month: 'Theo tháng', by_year: 'Theo năm', cancelled: 'Đã huỷ',
+    updated: 'Đã cập nhật thư viện', tabSettings: 'Cài đặt', saveToPhotos: 'Lưu vào Ảnh', origManual: 'Chạm để tải ảnh gốc', origLoading: 'Đang tải ảnh gốc', origReady: 'Ảnh gốc, giữ ảnh để lưu', origFail: 'Không tải được ảnh gốc, hãy dùng nút Tải ảnh', origPreview: 'Bản xem trước, dùng nút Tải để lấy file gốc', heroEyebrow: 'Thư viện ảnh', heroA: 'Những khoảnh khắc đáng nhớ, ', heroB: 'gọn gàng', heroC: ' một chỗ', heroDesc: 'Ảnh được xếp theo từng chuyến đi và từng ngày chụp. Chỉ cần chọn album là xem, tải hoặc chia sẻ.', by_day: 'Theo ngày', by_month: 'Theo tháng', by_year: 'Theo năm', cancelled: 'Đã huỷ',
     infoName: 'Tên', infoDate: 'Ngày chụp', infoSize: 'Kích thước', infoFile: 'Dung lượng', infoCam: 'Máy ảnh', infoLens: 'Ống kính', infoExp: 'Thông số',
   },
   en: {
@@ -37,12 +37,14 @@ const I18N = {
     removed: 'Removed from album', coverSet: 'Cover set', reqSent: 'Request sent to the library owner', saveErr: 'Could not save (Firestore denied or Google sign-in not enabled)',
     zipping: 'Zipping', zipBig: 'Total about {mb} MB, continue?', nothing: 'Nothing selected', pickOne: 'Select exactly 1 photo for the cover',
     subAlbums: 'Sub-albums', photosHere: 'Photos in album', openDrive: 'Loading folder tree...', selected: 'selected',
-    updated: 'Library updated', tabSettings: 'Settings', saveToPhotos: 'Save to Photos', origLoading: 'Loading original', origReady: 'Original, press and hold to save', origFail: 'Could not load the original, use the Download button', origPreview: 'Preview only, use Download for the original file', heroEyebrow: 'Photo library', heroA: 'Memories worth keeping, ', heroB: 'neatly', heroC: ' in one place', heroDesc: 'Photos are organised by trip and by day. Pick an album to view, download or share.', by_day: 'By day', by_month: 'By month', by_year: 'By year', cancelled: 'Cancelled',
+    updated: 'Library updated', tabSettings: 'Settings', saveToPhotos: 'Save to Photos', origManual: 'Tap to load the original', origLoading: 'Loading original', origReady: 'Original, press and hold to save', origFail: 'Could not load the original, use the Download button', origPreview: 'Preview only, use Download for the original file', heroEyebrow: 'Photo library', heroA: 'Memories worth keeping, ', heroB: 'neatly', heroC: ' in one place', heroDesc: 'Photos are organised by trip and by day. Pick an album to view, download or share.', by_day: 'By day', by_month: 'By month', by_year: 'By year', cancelled: 'Cancelled',
     infoName: 'Name', infoDate: 'Taken', infoSize: 'Dimensions', infoFile: 'File size', infoCam: 'Camera', infoLens: 'Lens', infoExp: 'Exposure',
   },
 };
 let lang = lsGet('vdphoto_lang', lsGet('ividlab-lang', 'vi')) === 'en' ? 'en' : 'vi';
 export const getLang = () => lang;
+// "1 photo" / "2 photos" (tiếng Việt không chia số ít/nhiều).
+export const photoCount = (n) => `${n} ${n === 1 && lang === 'en' ? 'photo' : t('photos')}`;
 export function setLang(l) { lang = l; lsSet('vdphoto_lang', lang); }
 export const t = (k) => I18N[lang][k] || k;
 export function applyI18n() {

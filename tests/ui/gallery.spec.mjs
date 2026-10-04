@@ -123,6 +123,13 @@ test('tải zip (đường RAM): ra file zip hợp lệ chứa ảnh đã chọn
   expect(buf.includes(Buffer.from('ROOT_003.JPG'))).toBe(true);
 });
 
+test('tiếng Anh: số ít/số nhiều (1 photo, 14 photos)', async ({ page }) => {
+  await open(page, '?demo=1', '#/f/f-dalat');
+  await page.locator('#langBtn').click();
+  await expect(page.locator('#pageSub')).toHaveText('14 photos');
+  await expect(page.locator('.day-count').first()).toHaveText(/ · 1 photo$/);
+});
+
 test('đổi ngôn ngữ và theme', async ({ page }) => {
   await open(page);
   await page.locator('#langBtn').click();

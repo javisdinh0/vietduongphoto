@@ -141,7 +141,7 @@ select, .form-group input { padding: .5rem .8rem; border-radius: 12px; border: 1
 .req-list li { display: flex; justify-content: space-between; gap: .5rem; padding: .25rem 0; border-bottom: 1px dashed var(--border); }
 .req-list button { background: none; border: none; color: var(--err); cursor: pointer; }
 
-.lightbox { position: fixed; inset: 0; background: rgba(20,17,15,.96); z-index: 300; display: flex; flex-direction: column; color: #fff; }
+.lightbox { position: fixed; inset: 0; background: #14110f; z-index: 300; display: flex; flex-direction: column; color: #fff; }
 .lb-top { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: .9rem 1.2rem; z-index: 302; background: linear-gradient(rgba(20,17,15,.7), transparent); }
 .lb-count { font-size: .9rem; color: #d8d0c6; }
 .lb-tools { display: flex; gap: .4rem; }
@@ -216,3 +216,5 @@ select, .form-group input { padding: .5rem .8rem; border-radius: 12px; border: 1
 .lb-quality.loading::before { background: #e0a43a; animation: spin 1s linear infinite; border-radius: 2px; }
 .lb-quality.ready::before { background: #5fbf7f; }
 .lb-quality.fail::before { background: #e0705f; }
+.lb-quality.manual { cursor: pointer; }
+.lb-quality.manual::before { background: var(--primary); }

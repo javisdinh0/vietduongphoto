@@ -8,10 +8,10 @@ import { enterSelect, updateSelectBar } from './select.js';
 const lbImg = () => $('#lightboxImg');
 export function openLightbox(id) { LB.idx = Math.max(0, S.visible.findIndex((p) => p.id === id)); show($('#lightbox')); lbShow(); }
 function closeLightbox() {
-  lbStop(); lbCancelOriginal(); show($('#lightbox'), false); lbImg().src = ''; LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
+  lbStop(); lbCancelOriginal(); LB.cache.clear(); show($('#lightbox'), false); lbImg().src = ''; LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
   if (S.route.type === 'photo') location.hash = '#/all';
 }
-function lbStop() { clearInterval(LB.play); LB.play = null; const b = $('#lbPlay'); b.classList.remove('on'); b.firstElementChild.className = 'fas fa-play'; }
+function lbStop() { const was = !!LB.play; clearInterval(LB.play); LB.play = null; const b = $('#lbPlay'); b.classList.remove('on'); b.firstElementChild.className = 'fas fa-play'; const p = S.visible[LB.idx]; if (was && p && lbImg().dataset.quality !== 'original') lbLoadOriginal(p); }
 function lbTogglePlay() {
   if (LB.play) return lbStop();
   const b = $('#lbPlay'); b.classList.add('on'); b.firstElementChild.className = 'fas fa-pause';
@@ -25,6 +25,7 @@ const ORIG_EXT = new Set(['JPG', 'PNG', 'WEBP', 'GIF', 'BMP']);
 const mb = (n) => (n ? ` (${(n / 1e6).toFixed(1)} MB)` : '');
 function setQuality(kind, text) {
   const q = $('#lbQuality'); show(q, !!kind); q.className = 'lb-quality ' + (kind || 'hidden'); q.textContent = text || '';
+  q.setAttribute('role', kind === 'manual' ? 'button' : 'status'); q.tabIndex = kind === 'manual' ? 0 : -1;
 }
 // iOS (Safari/Edge): nhấn giữ "Lưu ảnh" tải lại địa chỉ ảnh bằng tiến trình hệ thống, không đọc được blob: trong bộ nhớ trang
 // ("Không có kết nối internet"). Trên màn hình cảm ứng dùng data: URL (tự chứa dữ liệu) cho ảnh <= 40 MB; desktop dùng blob:.
@@ -43,25 +44,47 @@ function lbCancelOriginal() {
   const sb = $('#shareFileBtn'); sb._file = null; show(sb, false);
   setQuality('');
 }
-function lbLoadOriginal(p) {
+// Bộ nhớ đệm nhỏ cho ảnh gốc vừa xem (lùi/tiến một vài ảnh không phải tải lại); xoá khi đóng lightbox.
+const CACHE_MAX = 3; const CACHE_BYTES = 60e6;
+function cachePut(id, blob) {
+  LB.cache.delete(id); LB.cache.set(id, blob);
+  let total = 0; LB.cache.forEach((b) => { total += b.size; });
+  for (const k of LB.cache.keys()) { if (LB.cache.size <= CACHE_MAX && total <= CACHE_BYTES) break; if (k === id) break; total -= LB.cache.get(k).size; LB.cache.delete(k); }
+}
+function applyOriginal(p, blob, still) {
+  const asData = COARSE() && blob.size <= 40e6;
+  return (async () => {
+    const url = asData ? await toDataUrl(blob) : URL.createObjectURL(blob);
+    if (!still()) { if (!asData) URL.revokeObjectURL(url); return; }
+    const free = () => { if (!asData) URL.revokeObjectURL(url); };
+    const probe = new Image();
+    probe.onload = () => { if (!still()) { free(); return; } if (!asData) LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; setQuality('ready', `${t('origReady')}${mb(p.size)}`); offerShare(p, blob); };
+    probe.onerror = () => { free(); if (still()) setQuality('fail', t('origFail')); };
+    probe.src = url;
+  })();
+}
+// manual=true: người dùng chạm nhãn để tải. Tự động bỏ qua khi đang trình chiếu (dùng bản xem trước) hoặc bật Tiết kiệm dữ liệu.
+function lbLoadOriginal(p, manual = false) {
   if (p.onlyRaw || !ORIG_EXT.has(p.ext)) { setQuality('preview', t('origPreview')); return; }
+  const cached = LB.cache.get(p.id);
+  if (!cached && !manual) {
+    if (LB.play) { setQuality(''); return; }
+    if (navigator.connection && navigator.connection.saveData) { setQuality('manual', `${t('origManual')}${mb(p.size)}`); return; }
+  }
   const ctrl = new AbortController(); LB.orig.ctrl = ctrl;
   LB.orig.timer = setTimeout(async () => {
     const still = () => !ctrl.signal.aborted && S.visible[LB.idx] && S.visible[LB.idx].id === p.id;
-    setQuality('loading', `${t('origLoading')}${mb(p.size)}`);
     try {
-      const blob = await S.backend.drive.original(p, ctrl.signal, (got) => { if (still() && p.size) setQuality('loading', `${t('origLoading')} ${Math.min(99, Math.round((got / p.size) * 100))}%${mb(p.size)}`); });
-      if (!still()) return;
-      const asData = COARSE() && blob.size <= 40e6;
-      const url = asData ? await toDataUrl(blob) : URL.createObjectURL(blob);
-      if (!still()) { if (!asData) URL.revokeObjectURL(url); return; }
-      const free = () => { if (!asData) URL.revokeObjectURL(url); };
-      const probe = new Image();
-      probe.onload = () => { if (!still()) { free(); return; } if (!asData) LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; setQuality('ready', `${t('origReady')}${mb(p.size)}`); offerShare(p, blob); };
-      probe.onerror = () => { free(); if (still()) setQuality('fail', t('origFail')); };
-      probe.src = url;
+      let blob = cached;
+      if (!blob) {
+        setQuality('loading', `${t('origLoading')}${mb(p.size)}`);
+        blob = await S.backend.drive.original(p, ctrl.signal, (got) => { if (still() && p.size) setQuality('loading', `${t('origLoading')} ${Math.min(99, Math.round((got / p.size) * 100))}%${mb(p.size)}`); });
+        if (!still()) return;
+        cachePut(p.id, blob);
+      }
+      await applyOriginal(p, blob, still);
     } catch (e) { if (still()) { console.warn('[vdphoto] không tải được ảnh gốc:', e); setQuality('fail', t('origFail')); } }
-  }, 250);
+  }, cached ? 0 : 250);
 }
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();
@@ -96,6 +119,9 @@ function renderInfo(p) {
 function lbToggleFav() { const p = S.visible[LB.idx]; if (!p) return; toggleFav(p.id); lbShow(); const c = document.querySelector(`.gallery-item[data-id="${p.id}"] .fav-btn`); if (c) c.classList.toggle('on', S.favs.has(p.id)); }
 function lbShare() { const p = S.visible[LB.idx]; if (!p) return; const u = `${location.origin}${location.pathname}#/p/${encodeURIComponent(p.id)}`; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast(t('copied')), () => prompt(t('share'), u)); }
 export function initLightbox() {
+  const manualLoad = () => { const q = $('#lbQuality'); const p = S.visible[LB.idx]; if (p && q.classList.contains('manual')) lbLoadOriginal(p, true); };
+  $('#lbQuality').addEventListener('click', manualLoad);
+  $('#lbQuality').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); manualLoad(); } });
   $('#shareFileBtn').addEventListener('click', async (e) => { const f = e.currentTarget._file; if (!f) return; try { await navigator.share({ files: [f] }); } catch (err) { if (err.name !== 'AbortError') toast(t('origFail')); } });
   $('#lbClose').addEventListener('click', closeLightbox);
   $('#lbPrev').addEventListener('click', () => lbMove(-1)); $('#lbNext').addEventListener('click', () => lbMove(1));
