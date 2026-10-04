@@ -61,7 +61,7 @@ const I18N = {
     infoName: 'Name', infoDate: 'Taken', infoSize: 'Dimensions', infoFile: 'File size', infoCam: 'Camera', infoLens: 'Lens', infoExp: 'Exposure',
   },
 };
-let lang = lsGet('ividlab-lang', 'vi') === 'en' ? 'en' : 'vi';
+let lang = lsGet('vdphoto_lang', lsGet('ividlab-lang', 'vi')) === 'en' ? 'en' : 'vi';
 const t = (k) => I18N[lang][k] || k;
 function applyI18n() {
   document.documentElement.lang = lang;
@@ -73,7 +73,7 @@ function applyI18n() {
 // ============================ Theme ============================
 function applyTheme(th) {
   document.documentElement.setAttribute('data-theme', th);
-  lsSet('ividlab-theme', th);
+  lsSet('vdphoto_theme', th);
   $('#themeBtn').innerHTML = th === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
 }
 
@@ -613,7 +613,7 @@ function bind() {
   $('#saveSettings').addEventListener('click', saveSettings);
   $('#closeAlbum').addEventListener('click', () => show($('#albumModal'), false)); $('#albumOk').addEventListener('click', confirmAlbum);
   window.addEventListener('click', (e) => { if (e.target === $('#settingsModal')) show($('#settingsModal'), false); if (e.target === $('#albumModal')) show($('#albumModal'), false); });
-  $('#langBtn').addEventListener('click', () => { lang = lang === 'vi' ? 'en' : 'vi'; lsSet('ividlab-lang', lang); applyI18n(); if (S.loaded) { fillYears(); route(); } });
+  $('#langBtn').addEventListener('click', () => { lang = lang === 'vi' ? 'en' : 'vi'; lsSet('vdphoto_lang', lang); applyI18n(); if (S.loaded) { fillYears(); route(); } });
   $('#themeBtn').addEventListener('click', () => applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
   let qt; $('#searchInput').addEventListener('input', (e) => { clearTimeout(qt); qt = setTimeout(() => { S.filters.q = e.target.value; saveFilters(); route(); }, 200); });
   $('#yearSel').addEventListener('change', (e) => { S.filters.year = e.target.value; saveFilters(); route(); });

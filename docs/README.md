@@ -13,7 +13,7 @@ Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn 
 - Tìm theo tên, lọc năm / có RAW / yêu thích (yêu thích lưu localStorage).
 - Chọn nhiều → tải **zip** (store, có CRC, tuỳ chọn kèm RAW).
 - Cache cây thư mục + danh sách file trong IndexedDB 20 phút (xoá khi đăng xuất / đổi cấu hình).
-- Theme + ngôn ngữ lưu localStorage với key `ividlab-theme`, `ividlab-lang` (giữ tên cũ từ thời còn chung site ividlab để không mất cài đặt người dùng). Nút nhà trong `index.html` vẫn trỏ `ividlab.com`.
+- Theme + ngôn ngữ lưu localStorage với key `vdphoto_theme`, `vdphoto_lang` (vẫn đọc key cũ `ividlab-theme`, `ividlab-lang` làm giá trị dự phòng, không còn ghi vào). Nút nhà trong `index.html` vẫn trỏ `ividlab.com`.
 
 ## Firestore rules
 [`firestore.rules`](../firestore.rules) ở gốc repo là nguồn chuẩn cho `config/owners`, `photoAlbums`, `photoRequests` — **phải dán tay vào Firebase Console** (hoặc `firebase deploy --only firestore:rules`) mới có hiệu lực, không thì album ảo/yêu cầu quyền báo "không lưu được". Dự án Firebase `ividlab-rficonsole` còn có thể phục vụ site khác: nếu vậy hãy gộp các `match` vào rules hiện có, đừng ghi đè. Quyền: người đăng nhập (email đã xác minh) đọc album; chỉ admin ghi album, đọc/xoá yêu cầu; mỗi người chỉ gửi được yêu cầu cho chính email của mình.
