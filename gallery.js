@@ -141,17 +141,21 @@ function setCardRatio(item, p) {
   item.style.aspectRatio = `${ar}`; item.style.flex = `${Math.round(ar * 100)} 1 ${Math.round(ar * 200)}px`; // flex dùng cho chế độ lưới đều
 }
 function emptyCard(item) { item._filled = false; item.querySelectorAll('img').forEach((i) => { i.removeAttribute('srcset'); i.removeAttribute('src'); }); item.textContent = ''; item.style.backgroundImage = ''; }
-let recycler = null;
+let recycler = null; let emptier = null;
 function photoCard(p) {
   const item = el('div', 'gallery-item' + (S.selected.has(p.id) ? ' selected' : '')); item.dataset.id = p.id;
   setCardRatio(item, p);
   item._p = p;
   item.addEventListener('click', () => { if (S.selectMode) { toggleSelect(p.id, item); } else openLightbox(p.id); });
   fillCard(item, p);
-  if (recycler) recycler.observe(item);
+  if (recycler) { recycler.observe(item); emptier.observe(item); }
   return item;
 }
+// Hai ngưỡng (có độ trễ): điền nội dung khi thẻ vào vùng M, chỉ gỡ khi thẻ ra khỏi vùng 1,5·M. Một ngưỡng duy nhất làm các thẻ ở biên
+// bị dựng rồi gỡ liên tục khi kéo qua lại (nhất là lúc kéo bật lại ở cuối album trên iOS).
 function newRecycler() {
-  if (recycler) recycler.disconnect();
-  recycler = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) fillCard(e.target, e.target._p); else emptyCard(e.target); }), { rootMargin: isCoarse() ? '1000px 0px' : '2500px 0px' });
+  if (recycler) recycler.disconnect(); if (emptier) emptier.disconnect();
+  const m = isCoarse() ? 1000 : 2500;
+  recycler = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) fillCard(e.target, e.target._p); }), { rootMargin: `${m}px 0px` });
+  emptier = new IntersectionObserver((es) => es.forEach((e) => { if (!e.isIntersecting) emptyCard(e.target); }), { rootMargin: `${Math.round(m * 1.5)}px 0px` });
 }

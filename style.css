@@ -13,7 +13,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--sans); background: var(--bg); color: var(--text); line-height: 1.55; -webkit-font-smoothing: antialiased; }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-header { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+header { background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
 .header-container { max-width: 1280px; margin: 0 auto; padding: .9rem 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
 h1 { font-size: 1.2rem; font-weight: 500; }
 .brand { color: inherit; text-decoration: none; display: flex; align-items: center; gap: .6rem; }
