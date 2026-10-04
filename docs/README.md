@@ -63,3 +63,6 @@ Không có proxy: token Google sống ~1 giờ; mở lại sau đó chỉ thử 
 
 ## Giao diện điện thoại
 Dưới 768px có thanh điều hướng dưới (Thư viện / Yêu thích / Chọn / Cài đặt — người không phải admin thì tab cuối là Đăng xuất); các nút Cài đặt/Đăng xuất/ividlab ở header được ẩn vì đã có ở thanh dưới, thanh chọn ảnh nổi phía trên thanh điều hướng. Trang album/thư mục/tất cả/yêu thích có tiêu đề serif lớn + số ảnh (`#pageTitle`, `#pageSub`).
+
+## Lưu ảnh gốc trên điện thoại
+Nhãn `#lbQuality` ở lightbox báo tiến độ tải ảnh gốc. iOS (Safari/Edge) không lưu được ảnh có địa chỉ `blob:` khi nhấn giữ ("Không có kết nối internet"), nên trên màn hình cảm ứng ảnh gốc (<= 40 MB) được gán bằng `data:` URL; ngoài ra có nút **Lưu vào Ảnh** dùng Web Share với file gốc (hiện khi trình duyệt hỗ trợ `navigator.canShare({files})`), cách đáng tin nhất để vào thư viện Ảnh đúng chất lượng gốc. Nút **Tải ảnh** luôn tải file gốc về Tệp. Test: `tests/ui/save.spec.mjs`.

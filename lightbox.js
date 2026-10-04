@@ -26,10 +26,21 @@ const mb = (n) => (n ? ` (${(n / 1e6).toFixed(1)} MB)` : '');
 function setQuality(kind, text) {
   const q = $('#lbQuality'); show(q, !!kind); q.className = 'lb-quality ' + (kind || 'hidden'); q.textContent = text || '';
 }
+// iOS (Safari/Edge): nhấn giữ "Lưu ảnh" tải lại địa chỉ ảnh bằng tiến trình hệ thống, không đọc được blob: trong bộ nhớ trang
+// ("Không có kết nối internet"). Trên màn hình cảm ứng dùng data: URL (tự chứa dữ liệu) cho ảnh <= 40 MB; desktop dùng blob:.
+const COARSE = () => matchMedia('(pointer: coarse)').matches;
+const toDataUrl = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+// Nút "Lưu vào Ảnh": Web Share với file gốc (iOS/Android: "Lưu hình ảnh" vào thư viện đúng chất lượng gốc).
+function offerShare(p, blob) {
+  const btn = $('#shareFileBtn'); const file = new File([blob], p.name, { type: blob.type || 'image/jpeg' });
+  let ok = false; try { ok = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { ok = false; }
+  btn._file = ok ? file : null; show(btn, ok);
+}
 function lbCancelOriginal() {
   clearTimeout(LB.orig.timer); if (LB.orig.ctrl) LB.orig.ctrl.abort();
   if (LB.orig.url) URL.revokeObjectURL(LB.orig.url);
   LB.orig = { url: null, timer: null, ctrl: null };
+  const sb = $('#shareFileBtn'); sb._file = null; show(sb, false);
   setQuality('');
 }
 function lbLoadOriginal(p) {
@@ -41,10 +52,13 @@ function lbLoadOriginal(p) {
     try {
       const blob = await S.backend.drive.original(p, ctrl.signal, (got) => { if (still() && p.size) setQuality('loading', `${t('origLoading')} ${Math.min(99, Math.round((got / p.size) * 100))}%${mb(p.size)}`); });
       if (!still()) return;
-      const url = URL.createObjectURL(blob);
+      const asData = COARSE() && blob.size <= 40e6;
+      const url = asData ? await toDataUrl(blob) : URL.createObjectURL(blob);
+      if (!still()) { if (!asData) URL.revokeObjectURL(url); return; }
+      const free = () => { if (!asData) URL.revokeObjectURL(url); };
       const probe = new Image();
-      probe.onload = () => { if (!still()) { URL.revokeObjectURL(url); return; } LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; setQuality('ready', `${t('origReady')}${mb(p.size)}`); };
-      probe.onerror = () => { URL.revokeObjectURL(url); if (still()) setQuality('fail', t('origFail')); };
+      probe.onload = () => { if (!still()) { free(); return; } if (!asData) LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; setQuality('ready', `${t('origReady')}${mb(p.size)}`); offerShare(p, blob); };
+      probe.onerror = () => { free(); if (still()) setQuality('fail', t('origFail')); };
       probe.src = url;
     } catch (e) { if (still()) { console.warn('[vdphoto] không tải được ảnh gốc:', e); setQuality('fail', t('origFail')); } }
   }, 250);
@@ -82,6 +96,7 @@ function renderInfo(p) {
 function lbToggleFav() { const p = S.visible[LB.idx]; if (!p) return; toggleFav(p.id); lbShow(); const c = document.querySelector(`.gallery-item[data-id="${p.id}"] .fav-btn`); if (c) c.classList.toggle('on', S.favs.has(p.id)); }
 function lbShare() { const p = S.visible[LB.idx]; if (!p) return; const u = `${location.origin}${location.pathname}#/p/${encodeURIComponent(p.id)}`; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast(t('copied')), () => prompt(t('share'), u)); }
 export function initLightbox() {
+  $('#shareFileBtn').addEventListener('click', async (e) => { const f = e.currentTarget._file; if (!f) return; try { await navigator.share({ files: [f] }); } catch (err) { if (err.name !== 'AbortError') toast(t('origFail')); } });
   $('#lbClose').addEventListener('click', closeLightbox);
   $('#lbPrev').addEventListener('click', () => lbMove(-1)); $('#lbNext').addEventListener('click', () => lbMove(1));
   $('#lbInfo').addEventListener('click', () => $('#lbPanel').classList.toggle('hidden'));
