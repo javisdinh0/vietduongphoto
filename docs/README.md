@@ -152,3 +152,9 @@ Trước đây chỉ có chạm một lần để phóng cố định 2,5x và l
 - **Phông chữ:** chỉ nạp độ đậm thực dùng — Newsreader 500 (thường + nghiêng), Be Vietnam Pro 400/500/600 (bỏ 700). Test kiểm tra danh sách này khớp với `font-weight` trong CSS.
 - **PWA/iPhone:** `apple-touch-icon.png` (180x180, tràn nền, không trong suốt vì iOS tô đen vùng trong suốt), `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` và `manifest.webmanifest` khai báo đủ. Sinh lại bằng `node scripts/make-icons.mjs` khi đổi thiết kế biểu tượng.
 - Chưa làm (đã đề xuất): thay Font Awesome bằng SVG tự chứa (38 biểu tượng), service worker lưu sẵn khung ứng dụng + cập nhật ngầm, `?perf=1` đo trên điện thoại thật.
+
+## Biểu tượng SVG tự chứa (thay Font Awesome)
+Trước đây trang nạp toàn bộ Font Awesome 6.4.0 từ cdnjs (CSS chặn hiển thị + webfont, ước tính vài trăm KB) chỉ để dùng ~38 biểu tượng. Nay `icons.css` (**~22 KB**, cùng một yêu cầu, cache được, không phụ thuộc CDN) định nghĩa mỗi lớp `.fa-xxx` bằng một ảnh SVG qua CSS mask; **markup không đổi** (`<i class="fas fa-play">`, `className = 'far fa-heart'`…) nên đổi biểu tượng bằng JS vẫn chạy. Biểu tượng lấy từ chính gói Font Awesome Free 6.4.0 nên hình giống hệt (CC BY 4.0, có ghi trong đầu `icons.css`).
+- **Thêm biểu tượng mới:** dùng lớp `fa-tên` trong HTML/JS rồi chạy `npm run icons:css` (quét mã nguồn, sinh lại `icons.css`) và commit. Tên không có thì trình sinh báo lỗi; `tests/icons.test.mjs` fail nếu thiếu biểu tượng hoặc `icons.css` lệch với trình sinh.
+- **Lưu ý:** biểu tượng là mặt nạ nên `background` đặt lên thẻ `<i>` sẽ bị cắt theo hình biểu tượng (từng làm nền "viên thuốc" của tab đang chọn ở thanh dưới bị nhạt) — hãy vẽ nền trên phần tử bao ngoài (`.ti`). Màu biểu tượng là `currentColor` của phần tử cha.
+- Test: `tests/ui/icons.spec.mjs` kiểm tra từng biểu tượng vẽ ra hình thật (tỉ lệ nét 4–97%), màu, trái tim viền↔đặc, thanh dưới.

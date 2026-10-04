@@ -14,6 +14,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;1,500&family=Be+Vietnam+Pro:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="icons.css"> <!-- biểu tượng SVG tự chứa thay Font Awesome (sinh bởi scripts/make-icons-css.mjs) -->
     <!-- Tải song song toàn bộ module (không có thì trình duyệt chỉ biết cần module nào sau khi tải xong module cha: chuỗi import sâu 9 tầng = 9 vòng chờ mạng).
          Danh sách này được kiểm tra bởi tests/assets.test.mjs: thêm/bớt import thì cập nhật cho khớp. -->
     <link rel="modulepreload" href="app.js">
@@ -36,7 +37,6 @@
     <link rel="modulepreload" href="zipclient.js">
     <link rel="modulepreload" href="zoom.js">
     <link rel="modulepreload" href="zip.js">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         (function () {
             var saved = null;
@@ -114,10 +114,10 @@
     </div>
 
     <nav id="bottomNav" class="bottom-nav hidden" aria-label="Điều hướng">
-        <a href="#/" data-tab="home"><i class="fas fa-folder"></i><span data-i18n="home">Thư viện</span></a>
-        <a href="#/fav" data-tab="fav"><i class="fas fa-heart"></i><span data-i18n="fav">Yêu thích</span></a>
-        <button id="tabSelect" type="button"><i class="fas fa-square-check"></i><span data-i18n="select">Chọn</span></button>
-        <button id="tabMore" type="button"><i class="fas fa-gear"></i><span id="tabMoreLabel">Cài đặt</span></button>
+        <a href="#/" data-tab="home"><span class="ti"><i class="fas fa-folder"></i></span><span data-i18n="home">Thư viện</span></a>
+        <a href="#/fav" data-tab="fav"><span class="ti"><i class="fas fa-heart"></i></span><span data-i18n="fav">Yêu thích</span></a>
+        <button id="tabSelect" type="button"><span class="ti"><i class="fas fa-square-check"></i></span><span data-i18n="select">Chọn</span></button>
+        <button id="tabMore" type="button"><span class="ti"><i class="fas fa-gear"></i></span><span id="tabMoreLabel">Cài đặt</span></button>
     </nav>
 
     <div id="toast" class="toast hidden"></div>

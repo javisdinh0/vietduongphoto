@@ -39,7 +39,7 @@ function updateTabs() {
   document.querySelectorAll('#bottomNav [data-tab]').forEach((a) => a.classList.toggle('active', a.dataset.tab === home));
   $('#tabSelect').classList.toggle('active', S.selectMode);
   $('#tabMoreLabel').textContent = t(S.isAdmin ? 'tabSettings' : 'logout');
-  $('#tabMore').firstElementChild.className = S.isAdmin ? 'fas fa-gear' : 'fas fa-right-from-bracket';
+  $('#tabMore i').className = S.isAdmin ? 'fas fa-gear' : 'fas fa-right-from-bracket';
 }
 export function route() {
   S.route = S.share ? { type: 'share' } : parseHash(location.hash);
