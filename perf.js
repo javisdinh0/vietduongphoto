@@ -14,24 +14,39 @@ export function stat(arr) {
   const s = [...arr].sort((a, b) => a - b); const q = (p) => s[Math.min(s.length - 1, Math.ceil(s.length * p) - 1)];
   return { n: s.length, p50: q(0.5), p95: q(0.95), max: s[s.length - 1] };
 }
+export function detectBrowser(ua = '') {
+  const ios = /iPhone|iPad|iPod/.test(ua);
+  if (/EdgiOS\//.test(ua)) return { name: 'Edge (iOS)', ios: true, swLikely: false };
+  if (/CriOS\//.test(ua)) return { name: 'Chrome (iOS)', ios: true, swLikely: false };
+  if (/FxiOS\//.test(ua)) return { name: 'Firefox (iOS)', ios: true, swLikely: false };
+  if (ios && /Safari\//.test(ua)) return { name: 'Safari (iOS)', ios: true, swLikely: true };
+  if (ios) return { name: 'Trình duyệt nhúng (iOS)', ios: true, swLikely: false };
+  if (/Edg\//.test(ua)) return { name: 'Edge', ios: false, swLikely: true };
+  if (/Chrome\//.test(ua)) return { name: 'Chrome', ios: false, swLikely: true };
+  if (/Firefox\//.test(ua)) return { name: 'Firefox', ios: false, swLikely: true };
+  if (/Safari\//.test(ua)) return { name: 'Safari', ios: false, swLikely: true };
+  return { name: 'không rõ', ios: false, swLikely: true };
+}
 export const estimateDecodedBytes = (imgs) => [...imgs].reduce((a, i) => a + (i.complete ? (i.naturalWidth || 0) * (i.naturalHeight || 0) * 4 : 0), 0);
 const r0 = (x) => Math.round(x); const mb = (b) => Math.round(b / 1048576); const kb = (b) => Math.round(b / 1024);
 const pct = (a, n) => (n ? ` (${((a / n) * 100).toFixed(1)}%)` : '');
 const ms = (x) => (x == null ? 'n/a' : `${r0(x)} ms`);
-const fr = (h) => `${h.n} khung · >25ms: ${histOver(h, 25)}${pct(histOver(h, 25), h.n)} · >50ms: ${histOver(h, 50)}${pct(histOver(h, 50), h.n)} · >100ms: ${histOver(h, 100)} · tệ nhất ${r0(h.max)} ms`;
+const fr = (h, med) => `${h.n} khung · >25ms: ${histOver(h, 25)}${pct(histOver(h, 25), h.n)} · >50ms: ${histOver(h, 50)}${pct(histOver(h, 50), h.n)} · >100ms: ${histOver(h, 100)} · bỏ lỡ ≥2 khung (>${r0(med * 1.9)}ms): ${histOver(h, med * 1.9)}${pct(histOver(h, med * 1.9), h.n)} · tệ nhất ${r0(h.max)} ms`;
 
 // d: ảnh chụp số liệu (xem snapshot()) → {text, json}. Hàm thuần để test.
 export function buildReport(d) {
-  const A = d.frames.all; const med = histPct(A, 0.5) || 1; const L = d.lb;
+  const A = d.frames.all; const med = histPct(A, 0.5) || 1; const L = d.lb; const lowRate = A.n >= 20 && med >= 28; const sw = d.env.sw || {}; const br = d.env.browser || {};
   const lines = [
     `VD Photo — báo cáo hiệu năng · ${d.when}`,
-    `Phiên bản: ${d.version || 'không có service worker'} · đo ${Math.floor(d.secs / 60)} phút ${d.secs % 60} giây`,
+    `Bản lưu của service worker: ${d.version || 'không có'} · đo ${Math.floor(d.secs / 60)} phút ${d.secs % 60} giây`,
     `Máy: ${d.env.ua} · DPR ${d.env.dpr} · ${d.env.vw}×${d.env.vh} · ${d.env.cores || '?'} nhân${d.env.touch ? ' · cảm ứng' : ''}${d.env.standalone ? ' · đã thêm vào màn hình chính' : ''}${d.env.net ? ` · mạng ${d.env.net}` : ''}`,
+    `Trình duyệt: ${br.name || '?'} · service worker: ${sw.supported ? (sw.controlled ? 'đang điều khiển trang' : 'hỗ trợ, chưa điều khiển trang') : `KHÔNG hỗ trợ${br.ios && !br.swLikely ? ' (trình duyệt iOS không phải Safari thường không cho dùng service worker)' : ''}`}`,
     `Khởi động: FCP ${ms(d.start.fcp)} · LCP ${ms(d.start.lcp)} · DCL ${ms(d.start.dcl)} · load ${ms(d.start.load)} · trang chủ hiện lúc ${ms(d.start.firstRoute)} · thư viện sẵn lúc ${ms(d.start.libraryReady)} · ${d.start.modules} module (~${kb(d.start.jsBytes)} KB)`,
-    `Khung hình (trung vị ${r0(med)} ms ≈ ${r0(1000 / med)} Hz): ${fr(A)}`,
-    `  khi cuộn: ${fr(d.frames.scroll)}`,
-    `  khi zoom/kéo ảnh: ${fr(d.frames.gesture)}`,
-    `  lúc yên: ${fr(d.frames.idle)}`,
+    `Khung hình (trung vị ${r0(med)} ms ≈ ${r0(1000 / med)} Hz): ${fr(A, med)}`,
+    ...(lowRate ? [`⚠ Tần số quét chỉ ~${r0(1000 / med)} Hz: iPhone có thể đang bật "Chế độ nguồn điện thấp" (Safari giới hạn 30 khung/giây, biểu tượng pin màu vàng). Khi đó mọi khung đều >25 ms nên số ">25ms" KHÔNG phản ánh giật — hãy xem "bỏ lỡ ≥2 khung"; tốt nhất tắt chế độ này (Cài đặt > Pin) rồi đo lại.`] : []),
+    `  khi cuộn: ${fr(d.frames.scroll, med)}`,
+    `  khi zoom/kéo ảnh: ${fr(d.frames.gesture, med)}`,
+    `  lúc yên: ${fr(d.frames.idle, med)}`,
     `Ảnh: lưới tải ${d.imgs.thumbOk}, lỗi ${d.imgs.thumbErr} · yêu cầu ảnh ${d.res.img.n}, thời gian p50 ${r0(d.res.img.p50)} ms, p95 ${r0(d.res.img.p95)} ms, >2 giây: ${d.res.slow2s}`,
     `Bộ nhớ ảnh (ước tính đã giải mã): hiện ${mb(d.mem.cur)} MB, đỉnh ${mb(d.mem.peak)} MB · DOM ${d.dom} nút · <img> trong lưới ${d.gridImgs} · dựng thẻ ${d.counts.fill} lần, gỡ ${d.counts.empty} lần`,
     `Lightbox (${L.opens} lượt xem): xem trước p50 ${r0(L.preview.p50)} ms (max ${r0(L.preview.max)}) · 1000px p50 ${r0(L.s1000.p50)} (n=${L.s1000.n}) · bản lớn p50 ${r0(L.sFull.p50)} (n=${L.sFull.n}) · ảnh gốc p50 ${r0(L.orig.p50)} ms, max ${r0(L.orig.max)} (n=${L.orig.n}, ~${mb(L.origBytesTotal)} MB) · lỗi bước nét ${L.fail} · lỗi ảnh gốc ${L.origFail}`,
@@ -98,6 +113,7 @@ async function snapshot() {
   return {
     when: new Date().toLocaleString('vi-VN'), secs: Math.round((performance.now() - st.t0) / 1000), version,
     env: { ua: navigator.userAgent.replace(/^Mozilla\/5\.0 /, '').slice(0, 90), dpr: window.devicePixelRatio, vw: innerWidth, vh: innerHeight, cores: navigator.hardwareConcurrency, touch: matchMedia('(pointer: coarse)').matches,
+      browser: detectBrowser(navigator.userAgent), sw: { supported: 'serviceWorker' in navigator, controlled: !!(navigator.serviceWorker && navigator.serviceWorker.controller) },
       standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches), net: c.effectiveType ? `${c.effectiveType}${c.rtt ? ` rtt ${c.rtt}ms` : ''}${c.saveData ? ' tiết kiệm dữ liệu' : ''}` : '' },
     start: { fcp: paint['first-contentful-paint'] ?? null, lcp: st.lcp, dcl: nav.domContentLoadedEventEnd ?? null, load: nav.loadEventEnd || null, firstRoute: st.marks['first-route'] ?? null, libraryReady: st.marks['library-ready'] ?? null, modules: st.js, jsBytes: st.jsBytes },
     frames: st.frames, imgs: st.imgs, res: { img: stat(st.resImg), slow2s: st.slow2s }, mem: st.mem, dom: st.dom, gridImgs: st.gridImgs, counts: st.counts,

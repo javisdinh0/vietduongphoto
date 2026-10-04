@@ -38,6 +38,8 @@ test('báo cáo có số thật: khởi động, khung hình, thẻ ảnh; thêm
   for (let i = 0; i < 12; i++) { await page.mouse.wheel(0, 2500); await page.waitForTimeout(60); }
   const t = await report(page);
   expect(t).toContain('báo cáo hiệu năng'); expect(t).toContain('Máy:'); expect(t).toContain('Khởi động:');
+  expect(t).toMatch(/Trình duyệt: Chrome · service worker: (KHÔNG hỗ trợ|hỗ trợ|đang điều khiển)/);   // nhận diện trình duyệt + trạng thái service worker
+  expect(t).toContain('Bản lưu của service worker:');
   expect(num(t, /trang chủ hiện lúc (\d+) ms/)).toBeGreaterThan(0);                          // first-route đã được đánh dấu
   expect(num(t, /thư viện sẵn lúc (\d+) ms/)).toBeGreaterThan(0);
   expect(num(t, /Khung hình \(trung vị \d+ ms ≈ \d+ Hz\): (\d+) khung/)).toBeGreaterThan(10);

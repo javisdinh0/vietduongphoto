@@ -35,7 +35,7 @@ test('ước tính bộ nhớ ảnh đã giải mã: 4 byte/điểm ảnh, bỏ 
 const hist = (arr) => { const h = P.makeHist(); arr.forEach((x) => P.histAdd(h, x)); return h; };
 const fixture = (over = {}) => ({
   when: '5/10/2026', secs: 125, version: 'vdphoto-shell-abc123',
-  env: { ua: 'iPhone; CPU iPhone OS 17', dpr: 3, vw: 430, vh: 932, cores: 6, touch: true, standalone: false, net: '4g rtt 50ms' },
+  env: { ua: 'iPhone; CPU iPhone OS 17', dpr: 3, vw: 430, vh: 932, cores: 6, touch: true, standalone: false, net: '4g rtt 50ms', browser: { name: 'Safari (iOS)', ios: true, swLikely: true }, sw: { supported: true, controlled: true } },
   start: { fcp: 820, lcp: null, dcl: 410, load: 950, firstRoute: 1100, libraryReady: 1800, modules: 21, jsBytes: 124000 },
   frames: { all: hist([8, 8, 8, 9, 60, 130]), scroll: hist([9, 60, 130]), gesture: hist([]), idle: hist([8, 8, 8]) },
   imgs: { thumbOk: 180, thumbErr: 3 }, res: { img: P.stat([300, 340, 2500]), slow2s: 1 }, mem: { cur: 62 * 1048576, peak: 148 * 1048576 }, dom: 2350, gridImgs: 41, counts: { fill: 380, empty: 340, rowsAdded: 600 },
@@ -45,13 +45,52 @@ const fixture = (over = {}) => ({
 
 test('báo cáo: có đủ mục, số đúng, JSON đọc lại được, không NaN/undefined', () => {
   const { text, json } = P.buildReport(fixture());
-  for (const must of ['báo cáo hiệu năng', 'Phiên bản: vdphoto-shell-abc123', 'đo 2 phút 5 giây', 'DPR 3', '430×932', 'cảm ứng', 'mạng 4g rtt 50ms',
+  for (const must of ['báo cáo hiệu năng', 'Bản lưu của service worker: vdphoto-shell-abc123', 'Trình duyệt: Safari (iOS) · service worker: đang điều khiển trang', 'bỏ lỡ ≥2 khung (>15ms): 2 (33.3%)', 'đo 2 phút 5 giây', 'DPR 3', '430×932', 'cảm ứng', 'mạng 4g rtt 50ms',
     'FCP 820 ms', 'LCP n/a', 'trang chủ hiện lúc 1100 ms', '21 module (~121 KB)', 'Khung hình (trung vị 8 ms ≈ 125 Hz)', 'khi cuộn: 3 khung', 'khi zoom/kéo ảnh: 0 khung', 'lúc yên: 3 khung',
     'lưới tải 180, lỗi 3', 'p95 2500 ms, >2 giây: 1', 'hiện 62 MB, đỉnh 148 MB', 'DOM 2350 nút', 'dựng thẻ 380 lần, gỡ 340 lần', 'Lightbox (12 lượt xem)', 'lỗi bước nét 1', 'chuyển trang p50 8 ms']) {
     assert.ok(text.includes(must), `thiếu: ${must}\n${text}`);
   }
   assert.ok(!/NaN|undefined|Infinity/.test(text), text);
   const j = JSON.parse(json); assert.equal(j.frames.all.n, 6); assert.equal(j.frames.all.over50, 2); assert.equal(j.frames.scroll.over100, 1); assert.equal(j.mem.peak, 148 * 1048576); assert.equal(j.start.modules, 21);
+});
+
+const UA = {
+  safariIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+  edgeIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 EdgiOS/125.0.2535.60 Mobile/15E148 Safari/605.1.15',
+  chromeIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0.6478.35 Mobile/15E148 Safari/604.1',
+  firefoxIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/127.0 Mobile/15E148 Safari/605.1.15',
+  chromeAndroid: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
+  edgeWin: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0',
+  safariMac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+};
+test('nhận diện trình duyệt: iOS chỉ Safari mới có service worker, Edge/Chrome/Firefox iOS thì không', () => {
+  assert.deepEqual(P.detectBrowser(UA.safariIos), { name: 'Safari (iOS)', ios: true, swLikely: true });
+  assert.deepEqual(P.detectBrowser(UA.edgeIos), { name: 'Edge (iOS)', ios: true, swLikely: false });
+  assert.deepEqual(P.detectBrowser(UA.chromeIos), { name: 'Chrome (iOS)', ios: true, swLikely: false });
+  assert.deepEqual(P.detectBrowser(UA.firefoxIos), { name: 'Firefox (iOS)', ios: true, swLikely: false });
+  assert.equal(P.detectBrowser(UA.chromeAndroid).name, 'Chrome');
+  assert.equal(P.detectBrowser(UA.edgeWin).name, 'Edge');
+  assert.equal(P.detectBrowser(UA.safariMac).name, 'Safari');
+  assert.equal(P.detectBrowser('').name, 'không rõ');
+});
+
+test('báo cáo trên Edge iOS: nói rõ service worker KHÔNG hỗ trợ và vì sao (không có thanh "có bản mới" là bình thường)', () => {
+  const d = fixture(); d.env.browser = P.detectBrowser(UA.edgeIos); d.env.sw = { supported: false, controlled: false }; d.version = '';
+  const { text } = P.buildReport(d);
+  assert.ok(text.includes('Trình duyệt: Edge (iOS) · service worker: KHÔNG hỗ trợ (trình duyệt iOS không phải Safari thường không cho dùng service worker)'), text);
+  assert.ok(text.includes('Bản lưu của service worker: không có'));
+  d.env.browser = P.detectBrowser(UA.safariIos); d.env.sw = { supported: true, controlled: false };
+  assert.ok(P.buildReport(d).text.includes('service worker: hỗ trợ, chưa điều khiển trang'));
+});
+
+test('tần số quét ~30 Hz (Chế độ nguồn điện thấp): có cảnh báo và hướng dẫn; ở 60/120 Hz thì không', () => {
+  const frames = (v, n) => ({ all: hist(Array(n).fill(v)), scroll: hist(Array(Math.floor(n / 2)).fill(v)), gesture: hist([]), idle: hist(Array(Math.floor(n / 2)).fill(v)) });
+  const t = P.buildReport(fixture({ frames: frames(33.4, 60) })).text;
+  assert.ok(t.includes('Tần số quét chỉ ~30 Hz'), t);
+  assert.ok(t.includes('Chế độ nguồn điện thấp')); assert.ok(t.includes('KHÔNG phản ánh giật'));
+  assert.ok(t.includes('bỏ lỡ ≥2 khung (>63ms): 0 (0.0%)'), 'ở 30 Hz khung 33 ms là bình thường, chỉ khung >63 ms mới là bỏ lỡ');
+  for (const ok of [8, 16.7]) assert.ok(!P.buildReport(fixture({ frames: frames(ok, 60) })).text.includes('Tần số quét chỉ'), `${ok} ms không cảnh báo`);
+  assert.ok(!P.buildReport(fixture({ frames: frames(33, 10) })).text.includes('Tần số quét chỉ'), 'quá ít mẫu thì không kết luận');
 });
 
 test('báo cáo khi chưa có dữ liệu (máy vừa mở) không chia cho 0, không NaN', () => {
