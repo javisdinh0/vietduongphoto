@@ -1,17 +1,20 @@
-# Triển khai: cd proxy && npx wrangler login && npx wrangler deploy
+# Triển khai (xem docs/README.md, mục "Hướng dẫn triển khai Worker"):
+#   cd proxy && npx wrangler login && npx wrangler deploy
 name = "vdphoto-proxy"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 
 [vars]
 ALLOWED_ORIGIN = "https://javisdinh0.github.io"
-# Đăng nhập 1 lần (tuỳ chọn): GOOGLE_CLIENT_ID là biến công khai, 2 giá trị còn lại là secret:
-#   GOOGLE_CLIENT_ID = "<OAuth Web client id>"
+# --- Đăng nhập 1 lần (tuỳ chọn): bỏ comment dòng dưới và điền Client ID (công khai, không phải secret) ---
+# GOOGLE_CLIENT_ID = "<OAuth Web client id>"
+# Hai secret còn lại KHÔNG ghi vào file này, đặt bằng lệnh:
 #   npx wrangler secret put GOOGLE_CLIENT_SECRET
-#   npx wrangler secret put TOKEN_KEY      # chuỗi ngẫu nhiên dài, vd: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-# Chia sẻ album công khai (tuỳ chọn): tạo KV rồi bỏ comment và điền id
-#   npx wrangler kv namespace create SHARES
+#   npx wrangler secret put TOKEN_KEY      # chuỗi ngẫu nhiên dài: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# --- Chia sẻ album công khai (tuỳ chọn): email được phép tạo link, cách nhau bằng dấu phẩy (mặc định dinhvietdung.vn@gmail.com) ---
+# OWNER_EMAILS = "dinhvietdung.vn@gmail.com"
+
+# --- Chia sẻ album công khai: tạo KV bằng `npx wrangler kv namespace create SHARES`, rồi bỏ comment 3 dòng và điền id ---
 # [[kv_namespaces]]
 # binding = "SHARES"
 # id = "<id từ lệnh trên>"
-# OWNER_EMAILS = "dinhvietdung.vn@gmail.com"   # email được phép tạo link (cách nhau bằng dấu phẩy), đặt trong [vars]

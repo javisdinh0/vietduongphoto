@@ -90,3 +90,38 @@ Safari iOS bỏ bớt ảnh đã giải mã khi tab dùng nhiều RAM (biểu hi
 ## Chuyển ảnh bằng mũi tên không bị mất xem trước
 Trước đây mỗi lần bấm mũi tên đều bắt đầu tải bản lớn (1600/2000px) của ảnh mới mà không huỷ bản của các ảnh trước, nên khi lướt nhiều các yêu cầu cũ chặn băng thông và ảnh hiện tại không có xem trước; thumbnail hết hạn/bị giới hạn tốc độ cũng làm ảnh trống. Nay: (1) ảnh lân cận ±3 được tải sẵn bản **600px** (đúng URL dùng cho xem trước tức thì); (2) bản lớn chỉ bắt đầu sau khi dừng ~150ms và bị huỷ khi chuyển ảnh/đóng; (3) lỗi tải xem trước/bản lớn thì xin link thumbnail mới (`renewOnce`, tối đa 1 lần / 10 phút mỗi ảnh) rồi thử lại, nếu không có link mới thì thử lại sau 1,5s. Test: `tests/ui/arrows.spec.mjs`.
 - **Ảnh xem trước nét dần theo 3 bước:** 600px (tức thì, hoặc ảnh có sẵn trong lưới) → **1000px** (~100–200 KB, sau ~150ms dừng; cho ảnh nét ngay trên mạng yếu) → 1600px (điện thoại) / 2000px → ảnh gốc. Mỗi bước thành công mới sang bước sau và đều huỷ được khi chuyển ảnh. Ảnh lân cận ±2 tải sẵn bản 600px một lần (`LB.preSet`), không tải lại khi bấm qua lại; chỉ ngắt những ảnh lân cận chưa tải xong.
+
+## Hướng dẫn triển khai Worker (đăng nhập một lần + chia sẻ album)
+Cần tài khoản Cloudflare (gói miễn phí đủ) và Node.js. Worker này gồm 3 phần dùng chung một lần triển khai: proxy cache metadata Drive, đăng nhập một lần (`/auth/*`), chia sẻ album công khai (`/share/*`, cần KV).
+
+**Chuẩn bị ở Google Cloud Console** (dự án chứa OAuth client của app, Client ID nằm trong `app.js` → `DEFAULT_CLIENT_ID`):
+1. *APIs & Services → Credentials → OAuth 2.0 Client IDs →* chọn client loại **Web application** đó. *Authorized JavaScript origins* phải có `https://javisdinh0.github.io`.
+2. Mục **Client secrets → Add secret**, sao chép giá trị ngay (Google chỉ hiện đầy đủ một lần). Đây là `GOOGLE_CLIENT_SECRET`.
+3. *OAuth consent screen →* nếu trạng thái là **Testing**, refresh token chỉ sống 7 ngày; chuyển sang **In production** (dù app chưa được xác minh) để đăng nhập một lần thật sự bền.
+
+**Triển khai** (PowerShell; nếu không thấy `node` thì chạy trước `$env:Path = "C:\Program Files\nodejs;" + $env:Path`):
+```
+cd <thư mục repo>\proxy
+npx wrangler login                                  # mở trình duyệt, đăng nhập Cloudflare
+npx wrangler kv namespace create SHARES             # chỉ cần nếu dùng chia sẻ album; ghi lại id
+```
+Sửa `proxy/wrangler.toml`: bỏ comment và điền `GOOGLE_CLIENT_ID` (trong `[vars]`), và (nếu dùng chia sẻ) khối `[[kv_namespaces]]` với `id` vừa có; `OWNER_EMAILS` chỉ cần khi admin không phải `dinhvietdung.vn@gmail.com`. Rồi đặt hai secret:
+```
+npx wrangler secret put GOOGLE_CLIENT_SECRET        # dán Client secret
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # sinh chuỗi ngẫu nhiên
+npx wrangler secret put TOKEN_KEY                   # dán chuỗi vừa sinh
+npx wrangler deploy
+```
+Lần đầu Cloudflare hỏi đặt tên miền con `workers.dev`; kết quả in ra URL dạng `https://vdphoto-proxy.<tên>.workers.dev`.
+
+**Kiểm tra Worker:** `GET <URL>/drive/v3/files` phải trả `401` (chưa có token); `POST <URL>/auth/code` từ curl phải trả `403 forbidden_origin` (đúng, vì không phải từ trang). `501 not_configured` nghĩa là thiếu secret hoặc KV.
+
+**Bật trong app:** đăng nhập admin → bánh răng (Cài đặt) → ô **Proxy URL** dán URL Worker → Lưu (trang tải lại) → bấm Đăng nhập lại **một lần** (Google có thể xin lại quyền để cấp refresh token). Từ đó token tự làm mới; đóng tab nhiều giờ rồi mở lại vẫn vào thẳng. Thử chia sẻ: mở một album → **Chia sẻ công khai** → Tạo link → mở link trong cửa sổ ẩn danh.
+
+**Lỗi thường gặp**
+- Hộp thoại chia sẻ báo "Cần bật Worker…": chưa nhập Proxy URL hoặc chưa đăng nhập lại sau khi nhập (thiếu `vd_photo_rt`).
+- `Không thực hiện được [forbidden]` khi tạo link: email đang đăng nhập không có trong `OWNER_EMAILS`.
+- `[invalid_grant]` / bị hỏi đăng nhập lại liên tục: đã đổi `TOKEN_KEY`, hoặc refresh token bị thu hồi/hết hạn (consent screen đang ở *Testing*). Đăng nhập lại; các link chia sẻ cũ của refresh token đó cũng cần tạo lại.
+- Lỗi CORS trong console: `ALLOWED_ORIGIN` phải đúng `https://javisdinh0.github.io` (không có `/` cuối, không có đường dẫn).
+- Giới hạn gói miễn phí: Workers 100.000 yêu cầu/ngày (mỗi ảnh xem qua link chia sẻ là một yêu cầu), KV 1.000 lượt ghi/ngày (mỗi link tạo/thu hồi ghi vài lần), đủ dùng cho gia đình/bạn bè.
+- Không commit secret: Client secret và `TOKEN_KEY` chỉ đặt bằng `wrangler secret put`.
