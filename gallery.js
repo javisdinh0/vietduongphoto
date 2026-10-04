@@ -136,7 +136,7 @@ export async function renewOnce(p) {
 // Nội dung thẻ chỉ tồn tại khi thẻ ở gần màn hình; cuộn xa thì gỡ <img> & nút (giữ khung theo tỉ lệ) → DOM nhẹ dù hàng nghìn ảnh.
 function fillCard(item, p) {
   if (item._filled) return; item._filled = true;
-  if (p.tb) item.style.backgroundImage = `url("${thumbAt(p, 32)}")`; // blur-up: ảnh 32px phóng lớn làm nền trong lúc ảnh chính tải
+  // Không còn nền mờ 32px (mỗi thẻ từng gửi 2 yêu cầu ảnh → gấp đôi nguy cơ bị Google giới hạn tốc độ): ô màu --chip làm chỗ giữ trong lúc ảnh chính tải.
   const img = el('img'); img.loading = 'lazy'; img.alt = p.name; img.decoding = 'async';
   img.addEventListener('load', () => {
     img.classList.add('ok');

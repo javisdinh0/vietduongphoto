@@ -44,6 +44,7 @@ Windows: Node không có trong PATH của shell mới — dùng PowerShell với
 - Admin phía client có fallback email, nhưng rules chỉ tin `config/owners.emails` (chữ thường).
 - Key localStorage: `vdphoto_theme`, `vdphoto_lang` (đọc thêm `ividlab-*` cũ làm dự phòng, không ghi), `vdphoto_layout`, `vdphoto_tl`, `vd_photo_email`, `vd_photo_rt`.
 - **Giao diện (theme ấm tối giản):** nền kem, tiêu đề serif *Newsreader*, chữ *Be Vietnam Pro* (Google Fonts, nạp trong `index.html`), màu nhấn terracotta `#b4533a` (cũng là `theme-color` và `manifest`). Trang chủ (`#/`) có hero (`renderHero` trong `router.js`, chuỗi `heroEyebrow/heroA/B/C/heroDesc` trong `i18n.js` cho cả `vi` và `en`, mosaic 3 ảnh mới nhất) và **không hiện timeline** (`S.route.type !== 'home'`). Thanh chọn nổi, chip lọc, lightbox đều dùng biến màu trong `style.css` — sửa màu ở biến, đừng hard-code. Thêm chuỗi giao diện thì thêm ở cả `vi` lẫn `en`.
+- **`modulepreload` trong `index.html` phải khớp đồ thị import của `app.js`:** thêm/bớt/đổi tên module thì sửa các thẻ `<link rel="modulepreload">` (`tests/assets.test.mjs` fail nếu lệch). Thẻ ảnh trong lưới chỉ gửi **một** yêu cầu ảnh (đã bỏ nền mờ 32px — đừng thêm lại, nó gấp đôi số yêu cầu và làm tăng lỗi 429 của Google). Biểu tượng PNG sinh bằng `scripts/make-icons.mjs`.
 - Không còn nạp `traffic-track.js` của ividlab, nên site này không đẩy lượt xem vào dashboard `/admin` của ividlab.
 - Repo **public**: không commit secret. Client secret/`TOKEN_KEY` của proxy chỉ đặt bằng `wrangler secret put`.
 

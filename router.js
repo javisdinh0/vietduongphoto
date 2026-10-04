@@ -121,10 +121,10 @@ const vCard = (a) => ({ name: a.name, count: (a.fileIds || []).filter((i) => S.b
 function renderAlbumGrid(container, cards, title) {
   container.appendChild(el('h3', 'section-title', title));
   const grid = el('div', 'album-grid');
-  cards.forEach((c) => {
+  cards.forEach((c, i) => {
     const card = el('div', 'album-card' + (c.virtual ? ' album-virtual' : ''));
     const cover = el('div', 'album-cover');
-    if (c.cover) { const img = el('img'); img.loading = 'lazy'; img.src = thumbAt(c.cover, 400); img.alt = c.name; cover.appendChild(img); } else cover.innerHTML = '<i class="fas fa-images"></i>';
+    if (c.cover) { const img = el('img'); img.loading = i < 4 ? 'eager' : 'lazy'; if (i < 2) img.fetchPriority = 'high'; img.src = thumbAt(c.cover, 400); img.alt = c.name; cover.appendChild(img); } else cover.innerHTML = '<i class="fas fa-images"></i>';
     const info = el('div', 'album-info'); info.appendChild(el('div', 'album-name', c.name)); info.appendChild(el('div', 'album-count', S.partial ? '…' : photoCount(c.count)));
     card.append(cover, info); card.addEventListener('click', () => { location.hash = c.href; });
     grid.appendChild(card);

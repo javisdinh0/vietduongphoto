@@ -6,12 +6,36 @@
     <meta name="referrer" content="no-referrer">
     <title>VietDuong Photo Gallery</title>
     <link rel="icon" href="favicon.svg">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-title" content="VD Photo">
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#b4533a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;1,500&family=Be+Vietnam+Pro:wght@400;500;600&display=swap">
     <link rel="stylesheet" href="style.css">
+    <!-- Tải song song toàn bộ module (không có thì trình duyệt chỉ biết cần module nào sau khi tải xong module cha: chuỗi import sâu 9 tầng = 9 vòng chờ mạng).
+         Danh sách này được kiểm tra bởi tests/assets.test.mjs: thêm/bớt import thì cập nhật cho khớp. -->
+    <link rel="modulepreload" href="app.js">
+    <link rel="modulepreload" href="util.js">
+    <link rel="modulepreload" href="auth.js">
+    <link rel="modulepreload" href="state.js">
+    <link rel="modulepreload" href="cache.js">
+    <link rel="modulepreload" href="settings.js">
+    <link rel="modulepreload" href="albums.js">
+    <link rel="modulepreload" href="i18n.js">
+    <link rel="modulepreload" href="gallery.js">
+    <link rel="modulepreload" href="router.js">
+    <link rel="modulepreload" href="library.js">
+    <link rel="modulepreload" href="select.js">
+    <link rel="modulepreload" href="zipdl.js">
+    <link rel="modulepreload" href="lightbox.js">
+    <link rel="modulepreload" href="share.js">
+    <link rel="modulepreload" href="backend.js">
+    <link rel="modulepreload" href="lib.js">
+    <link rel="modulepreload" href="zipclient.js">
+    <link rel="modulepreload" href="zoom.js">
+    <link rel="modulepreload" href="zip.js">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         (function () {

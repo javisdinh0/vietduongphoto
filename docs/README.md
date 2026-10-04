@@ -144,3 +144,11 @@ Trước đây chỉ có chạm một lần để phóng cố định 2,5x và l
 - **Chuột / trackpad:** lăn chuột phóng liên tục quanh con trỏ (chụm trackpad = ctrl+wheel), click phóng/thu, kéo chuột để xem (kéo không bật/tắt zoom).
 - Safari iOS: chặn `gesturestart` để không thu phóng cả trang. Không dùng `setPointerCapture` (làm click bị chuyển về vùng nền và đóng nhầm lightbox); `pointermove/up/cancel` nghe ở `window`.
 - Chuyển ảnh thì zoom được đặt lại. Test: `tests/ui/zoom.spec.mjs` (cảm ứng giả lập bằng CDP `Input.dispatchTouchEvent`: lưu ý `touchEnd` nhấc đúng các điểm được liệt kê).
+
+## Tối ưu tải trang (đo trên máy giả lập 4G chậm, CPU chậm 4x, chế độ demo)
+- **`modulepreload` cho cả 20 module** trong `index.html`: trước đây chuỗi `import` sâu 9 tầng nên trình duyệt chỉ biết cần module nào sau khi tải xong module cha. Thời gian tới lúc thấy album: trung vị **1834 ms → 1605 ms (−12%)** với máy chủ cục bộ HTTP/1.1; trên GitHub Pages (HTTP/2) có thể lợi hơn nhưng chưa đo. **Thêm/bớt `import` thì phải cập nhật các thẻ `modulepreload`** — `tests/assets.test.mjs` so khớp với đồ thị import thật và sẽ fail nếu lệch.
+- **Bỏ nền mờ 32px của thẻ ảnh:** trước đây mỗi thẻ gửi 2 yêu cầu ảnh (32px + ảnh chính); đo được 14 yêu cầu `=s32` thừa cho 14 ảnh. Nay một yêu cầu/thẻ, giảm nguy cơ Google trả 429. Chỗ giữ chỗ là ô màu `--chip`.
+- **Ảnh bìa 4 album đầu tải ngay** (`loading="eager"`), 2 ảnh đầu `fetchpriority="high"`; các ảnh còn lại vẫn lazy.
+- **Phông chữ:** chỉ nạp độ đậm thực dùng — Newsreader 500 (thường + nghiêng), Be Vietnam Pro 400/500/600 (bỏ 700). Test kiểm tra danh sách này khớp với `font-weight` trong CSS.
+- **PWA/iPhone:** `apple-touch-icon.png` (180x180, tràn nền, không trong suốt vì iOS tô đen vùng trong suốt), `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` và `manifest.webmanifest` khai báo đủ. Sinh lại bằng `node scripts/make-icons.mjs` khi đổi thiết kế biểu tượng.
+- Chưa làm (đã đề xuất): thay Font Awesome bằng SVG tự chứa (38 biểu tượng), service worker lưu sẵn khung ứng dụng + cập nhật ngầm, `?perf=1` đo trên điện thoại thật.
