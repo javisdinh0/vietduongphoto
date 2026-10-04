@@ -30,7 +30,7 @@ function restoreScroll(y) {
 export function route() {
   S.route = parseHash(location.hash);
   S.loadMore = null;
-  const view = $('#view'); view.innerHTML = ''; view.className = '';
+  $('#hero').innerHTML = ''; const view = $('#view'); view.innerHTML = ''; view.className = '';
   const crumbs = $('#crumbs'); crumbs.innerHTML = ''; $('#viewActions').innerHTML = '';
   const addCrumb = (label, href) => { if (crumbs.children.length) crumbs.appendChild(el('span', 'sep', '/')); if (href) { const a = el('a', '', label); a.href = href; crumbs.appendChild(a); } else crumbs.appendChild(el('span', 'cur', label)); };
   const r = S.route;
@@ -38,6 +38,7 @@ export function route() {
   if (r.type === 'home') {
     addCrumb(t('home'));
     if (searching) return renderPhotos(view, S.photos);
+    renderHero($('#hero'));
     renderAlbumGrid(view, [
       { name: t('all'), count: S.photos.length, cover: S.photos[0], href: '#/all' },
       ...(S.favs.size ? [{ name: t('fav'), count: [...S.favs].filter((i) => S.byId.has(i)).length, cover: S.byId.get([...S.favs].find((i) => S.byId.has(i))), href: '#/fav' }] : []),
@@ -75,6 +76,20 @@ export function route() {
     renderPhotos(view, (a.fileIds || []).map((i) => S.byId.get(i)).filter(Boolean));
   }
   updateSelectBar();
+}
+// Phần giới thiệu ở trang chủ: tiêu đề + mosaic 3 ảnh mới nhất (ẩn mosaic khi chưa đủ ảnh).
+function renderHero(container) {
+  const hero = el('div', 'hero'); const text = el('div', 'hero-text');
+  text.appendChild(el('div', 'eyebrow', `${t('heroEyebrow')} · ${S.photos.length} ${t('photos')}`));
+  const h = el('h2', 'hero-title'); h.append(t('heroA'), el('i', '', t('heroB')), t('heroC')); text.appendChild(h);
+  text.appendChild(el('p', 'hero-desc', t('heroDesc')));
+  hero.appendChild(text);
+  if (S.photos.length >= 3) {
+    const m = el('div', 'hero-mosaic');
+    S.photos.slice(0, 3).forEach((p) => { const d = el('div', 'hero-img'); d.style.backgroundImage = `url("${thumbAt(p, 800)}")`; m.appendChild(d); });
+    hero.appendChild(m);
+  }
+  container.appendChild(hero);
 }
 function viewActionBtn(icon, label, fn, cls = '') { const b = el('button', 'btn btn-sm ' + cls); b.innerHTML = `<i class="fas ${icon}"></i> `; b.appendChild(document.createTextNode(label)); b.addEventListener('click', fn); $('#viewActions').appendChild(b); }
 function copyLink() { const u = location.href; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast(t('copied')), () => prompt(t('share'), u)); }

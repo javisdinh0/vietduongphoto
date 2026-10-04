@@ -57,7 +57,7 @@ export function renderPhotos(container, list) {
   container.appendChild(sentinel); io.observe(sentinel); more(PAGE);
   S.loadMore = () => { if (pos >= rows.length) return false; more(PAGE); return true; };
   const jump = (idx, key) => { while (pos <= idx) more(PAGE); document.getElementById('g-' + key).scrollIntoView({ behavior: 'smooth' }); };
-  if (days.length > 1) {
+  if (days.length > 1 && S.route.type !== 'home') { // trang chủ: ảnh ở thư mục gốc không cần timeline (tránh đè lên phần giới thiệu)
     // Mặc định theo ngày; thư viện quá dài (>150 ngày) mà người dùng chưa chọn thì gom theo tháng cho gọn.
     let mode = lsGet('vdphoto_tl'); if (!TL_MODES.includes(mode)) mode = days.length > 150 ? 'month' : 'day';
     tl.dataset.mode = mode;
