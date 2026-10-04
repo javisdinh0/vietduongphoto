@@ -1,52 +1,199 @@
 rules_version = '2';
 
-// Quy tắc Firestore cho VietDuong Photo (dự án Firebase `ividlab-rficonsole`).
-// Dán tay vào Firebase Console > Firestore > Rules (hoặc `firebase deploy --only firestore:rules`).
-// Chỉ chứa các collection mà ứng dụng này dùng; nếu project còn dùng cho site khác,
-// hãy GỘP các `match` dưới đây vào rules hiện có thay vì ghi đè.
+// Rules của dự án Firebase `ividlab-rficonsole` (DÙNG CHUNG nhiều site). Bản này là nguồn tham chiếu trong repo vietduongphoto:
+// phần của VietDuong Photo là khối "VietDuong Photo" bên dưới (config/owners, photoAlbums, photoRequests); các khối khác thuộc dự án khác,
+// giữ nguyên. Dán TOÀN BỘ vào Firebase Console > Firestore > Rules > Publish.
+//
+// RFI Console — phân quyền phía server (thay cho permissions.js client cũ).
+// Model: config/owners; projects/{pid}; projects/{pid}/members/{emailKey}; projects/{pid}/rfis/{rfiId}
+// Vai trò: 1 = toàn quyền, 2 = chỉ trả lời (+ khóa 24h), 3 = chỉ xem.
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---- Helpers ----
     function signedIn() {
       return request.auth != null && request.auth.token.email_verified == true;
     }
     function email() {
       return request.auth.token.email.lower();
     }
-    // Admin = email (viết thường) trong config/owners.emails, hoặc email dự phòng (khớp fallback ở backend.js).
+    function owners() {
+      return get(/databases/$(database)/documents/config/owners).data.emails;
+    }
     function isOwner() {
-      return signedIn() && (
-        email() == 'dinhvietdung.vn@gmail.com' ||
-        (exists(/databases/$(database)/documents/config/owners) &&
-         email() in get(/databases/$(database)/documents/config/owners).data.emails)
-      );
+      return signedIn() && email() in owners();
+    }
+    function memberRef(pid) {
+      return /databases/$(database)/documents/projects/$(pid)/members/$(email());
+    }
+    function isMember(pid) {
+      return signedIn() && exists(memberRef(pid));
+    }
+    function roleOf(pid) {
+      return get(memberRef(pid)).data.role;
     }
 
-    // Danh sách admin: người đăng nhập đọc được (để app biết có phải admin), chỉ sửa trong Console.
-    match /config/owners {
+    // Các cột L2 (chỉ trả lời) được phép đổi; kèm metadata người sửa.
+    function answerFields() {
+      return ['traLoiNoiDung', 'traLoiImages', 'ghiChu', 'trangThai', 'traLoiNote', 'editors', 'firstEditTime'];
+    }
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+    // L2 chỉ đổi cột trả lời, và trong vòng 24h kể từ lần sửa đầu.
+    // firstEditTime bị cưỡng chế server-side: PHẢI == request.time ở lần đầu (dùng
+    // serverTimestamp() phía client), và BẤT BIẾN ở các lần sau -> L2 không thể tự
+    // để null hoặc đặt tương lai để lách khóa.
+    function l2CanEdit() {
+      return changedKeys().hasOnly(answerFields())
+        && (
+          (resource.data.get('firstEditTime', null) == null
+             && request.resource.data.firstEditTime == request.time)
+          || (resource.data.get('firstEditTime', null) != null
+             && request.resource.data.firstEditTime == resource.data.firstEditTime
+             && request.time < resource.data.firstEditTime + duration.value(24, 'h'))
+        );
+    }
+
+    // ---- config (owners) : chỉ owner ghi; mọi người đăng nhập đọc để biết mình có phải owner ----
+    // LƯU Ý: rules không map() được mảng, nên config/owners.emails PHẢI lưu ở dạng
+    // CHỮ THƯỜNG (isOwner so email().lower() với danh sách nguyên trạng). Xem docs/rficonsole/DEPLOY.md.
+    match /config/{doc} {
       allow read: if signedIn();
-      allow write: if false;
+      allow write: if isOwner();
     }
 
-    // Album ảo: chỉ lưu id file Drive; quyền xem ảnh vẫn do Drive quyết định.
+    // ---- VietDuong Photo (javisdinh0.github.io/vietduongphoto): album ảo + yêu cầu truy cập, xem docs/README.md ----
+    // Admin của app = owner (config/owners). photoAlbums chỉ chứa tên + id file Drive (không lộ ảnh: quyền xem ảnh do Drive quyết định).
+    // Hình dạng doc khớp backend.js (createAlbum/updateAlbum): name, fileIds, cover, createdAt.
+    function validAlbum() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['name', 'fileIds', 'cover', 'createdAt'])
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 200
+          && d.fileIds is list
+          && (d.get('cover', null) == null || d.cover is string);
+    }
     match /photoAlbums/{id} {
       allow read: if signedIn();
-      allow create: if isOwner()
-        && request.resource.data.name is string && request.resource.data.name.size() <= 200
-        && request.resource.data.fileIds is list;
-      allow update: if isOwner()
-        && request.resource.data.name is string && request.resource.data.name.size() <= 200
-        && request.resource.data.fileIds is list;
+      allow create, update: if isOwner() && validAlbum();
       allow delete: if isOwner();
     }
-
-    // Yêu cầu truy cập: id tài liệu = email người gửi (chữ thường); chỉ admin xem/xoá.
-    match /photoRequests/{reqEmail} {
-      allow create, update: if signedIn()
-        && reqEmail == email()
-        && request.resource.data.email == email()
-        && request.resource.data.note is string && request.resource.data.note.size() <= 500;
+    match /photoRequests/{emailKey} {
+      allow create, update: if signedIn() && emailKey == email()
+                            && request.resource.data.keys().hasOnly(['email', 'note', 'ts'])
+                            && request.resource.data.email == emailKey
+                            && request.resource.data.note is string
+                            && request.resource.data.note.size() <= 500;
       allow read, delete: if isOwner();
+    }
+
+    // ---- trafficHits : bộ đếm lượt xem/tải của toàn site (trang /admin), xem docs/admin/README.md ----
+    // Ghi công khai (traffic-track.js chạy trên MỌI khách, không đăng nhập) nên chỉ cho
+    // "create" với hình dạng cố định — không update/delete để khách không sửa/xoá được dữ liệu
+    // đã ghi. ts ép bằng request.time (giống l2CanEdit ở trên) để không giả mạo thời gian.
+    match /trafficHits/{hitId} {
+      allow read: if isOwner();
+      allow create: if request.resource.data.keys().hasOnly(['path', 'type', 'ts', 'country', 'sid'])
+                    && request.resource.data.type in ['view', 'download']
+                    && request.resource.data.get('country', 'VN').matches('^[A-Z]{2}$')
+                    && request.resource.data.get('sid', 'abcdef').matches('^[A-Za-z0-9]{6,40}$')
+                    && request.resource.data.path is string
+                    && request.resource.data.path.size() > 0
+                    && request.resource.data.path.size() < 200
+                    && request.resource.data.path.matches('^/.*')
+                    && request.resource.data.ts == request.time;
+      allow update, delete: if false;
+    }
+
+    // ---- trafficReads : mốc thời gian đọc của từng lượt xem (traffic-track.js), nối với trafficHits qua sid ----
+    match /trafficReads/{readId} {
+      allow read: if isOwner();
+      allow create: if request.resource.data.keys().hasOnly(['path', 'sid', 'secs', 'ts', 'country'])
+                    && request.resource.data.path is string
+                    && request.resource.data.path.size() > 0
+                    && request.resource.data.path.size() < 200
+                    && request.resource.data.path.matches('^/.*')
+                    && request.resource.data.sid is string
+                    && request.resource.data.sid.matches('^[A-Za-z0-9]{6,40}$')
+                    && request.resource.data.secs is int
+                    && request.resource.data.secs >= 1
+                    && request.resource.data.secs <= 7200
+                    && request.resource.data.get('country', 'VN').matches('^[A-Z]{2}$')
+                    && request.resource.data.ts == request.time;
+      allow update, delete: if false;
+    }
+
+    // ---- AMC Private tools : chuyên mục chỉ người trong danh sách đọc được, xem docs/amc-private/README.md ----
+    // amcReaders/{emailKey}: 1 doc / người đọc (id = email chữ thường). Người đọc chỉ đọc được doc CỦA MÌNH
+    // (để trang /amc-private/ biết mình có quyền) — không liệt kê được danh sách người khác.
+    // KHÔNG để danh sách này trong config/* vì config ai đăng nhập cũng đọc được.
+    function isAmcReader() {
+      return signedIn() && exists(/databases/$(database)/documents/amcReaders/$(email()));
+    }
+    match /amcReaders/{emailKey} {
+      allow read: if isOwner() || (signedIn() && emailKey == email());
+      allow create, update: if isOwner()
+                            && request.resource.data.email is string
+                            && request.resource.data.email == emailKey
+                            && request.resource.data.email.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+[.][a-z]{2,}$');
+      allow delete: if isOwner();
+    }
+    // amcPosts/{slug} (bài, html) + amcPosts/{slug}/img/{name} (ảnh base64): chỉ owner ghi.
+    match /amcPosts/{slug} {
+      allow read: if isAmcReader() || isOwner();
+      allow write: if isOwner();
+      match /img/{name} {
+        allow read: if isAmcReader() || isOwner();
+        allow write: if isOwner();
+      }
+    }
+    // amcFiles/{fileId} (metadata) + amcFiles/{fileId}/chunks/{i} (dữ liệu chia khúc ≤ 900 KB): GIF lớn,
+    // bộ cài, file thiết lập. Chỉ người đọc được cấp quyền mới tải được — không có link công khai.
+    match /amcFiles/{fileId} {
+      allow read: if isAmcReader() || isOwner();
+      allow write: if isOwner();
+      match /chunks/{i} {
+        allow read: if isAmcReader() || isOwner();
+        allow write: if isOwner();
+      }
+    }
+
+    // Cho phép truy vấn collectionGroup('members') liệt kê dự án của CHÍNH MÌNH.
+    // Collection-group query chỉ khớp rule khai báo bằng recursive wildcard {path=**},
+    // và phải là điều kiện field-based (không get/exists) mới hợp lệ khi list.
+    match /{path=**}/members/{emailKey} {
+      allow read: if signedIn() && resource.data.email == email();
+    }
+
+    // ---- projects ----
+    match /projects/{pid} {
+      allow read:   if isMember(pid) || isOwner();
+      allow create: if isOwner();
+      allow update, delete: if isOwner() || (isMember(pid) && roleOf(pid) == 1);
+
+      // Thành viên: owner hoặc L1 quản lý; member đọc được danh sách của dự án mình.
+      // Validate tận gốc: role ∈ {1,2,3}; email là chuỗi, == id document (emailKey đã
+      // lowercase) và đúng định dạng email (chặn nháy kép/thẻ -> chặn stored XSS tại nguồn).
+      match /members/{emailKey} {
+        allow read: if isMember(pid) || isOwner();
+        allow create, update:
+             if (isOwner() || (isMember(pid) && roleOf(pid) == 1))
+             && request.resource.data.role in [1, 2, 3]
+             && request.resource.data.email is string
+             && request.resource.data.email == emailKey
+             && request.resource.data.email.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+[.][a-z]{2,}$');
+        allow delete: if isOwner() || (isMember(pid) && roleOf(pid) == 1);
+      }
+
+      // Dữ liệu RFI
+      match /rfis/{rfiId} {
+        allow read:          if isMember(pid) || isOwner();
+        allow create, delete: if isOwner() || (isMember(pid) && roleOf(pid) == 1);
+        allow update:
+             if isOwner()
+             || (isMember(pid) && roleOf(pid) == 1)
+             || (isMember(pid) && roleOf(pid) == 2 && l2CanEdit());
+      }
     }
   }
 }
