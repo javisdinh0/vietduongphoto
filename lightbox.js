@@ -9,7 +9,7 @@ import { enterSelect, updateSelectBar } from './select.js';
 const lbImg = () => $('#lightboxImg');
 export function openLightbox(id) { LB.idx = Math.max(0, S.visible.findIndex((p) => p.id === id)); show($('#lightbox')); lbShow(); }
 function closeLightbox() {
-  lbStop(); lbCancelOriginal(); LB.cache.clear(); show($('#lightbox'), false); lbImg().onerror = null; lbImg().src = ''; lbCancelPreviews();
+  lbStop(); lbCancelOriginal(); LB.cache.clear(); show($('#lightbox'), false); lbImg().onerror = null; lbImg().src = ''; lbCancelPreviews(true);
   if (S.route.type === 'photo') location.hash = '#/all';
 }
 function lbStop() { const was = !!LB.play; clearInterval(LB.play); LB.play = null; const b = $('#lbPlay'); b.classList.remove('on'); b.firstElementChild.className = 'fas fa-play'; const p = S.visible[LB.idx]; if (was && p && lbImg().dataset.quality !== 'original') lbLoadOriginal(p); }
@@ -98,10 +98,12 @@ export function loadOriginalForSave() {
   lbLoadOriginal(p, true); return true;
 }
 // Huỷ mọi tải xem trước còn dở (bản lớn + ảnh lân cận) khi chuyển ảnh/đóng: lướt nhanh không để các yêu cầu cũ chặn ảnh hiện tại.
-function lbCancelPreviews() {
+function lbCancelPreviews(all = false) {
   clearTimeout(LB.bigTimer);
   if (LB.big) { LB.big.onload = LB.big.onerror = null; LB.big.src = ''; LB.big = null; }
-  LB.pre.forEach((i) => { i.onload = null; i.src = ''; }); LB.pre = [];
+  const keep = [];
+  LB.pre.forEach((e) => { if (all || !e.i.complete) { e.i.onload = null; e.i.src = ''; LB.preSet.delete(e.url); } else keep.push(e); });
+  LB.pre = keep; if (all || LB.preSet.size > 60) { LB.pre = []; LB.preSet.clear(); }
 }
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();
@@ -126,13 +128,16 @@ function lbShow() {
   let started = false;
   const afterPreview = () => { if (started || !still()) return; started = true; clearTimeout(guard); lbLoadOriginal(p); };
   const guard = setTimeout(afterPreview, 6000); // mạng quá chậm cho bản lớn: vẫn bắt đầu tải ảnh gốc
-  const loadFull = (retry) => {
-    const big = new Image(); LB.big = big; const full = thumbAt(p, COARSE() ? 1600 : 2000); // điện thoại: 1600px đủ nét, giải mã nhẹ hơn
-    big.onload = () => { if (still() && img.dataset.quality !== 'original') img.src = full; afterPreview(); };
-    big.onerror = async () => { if (retry && await renewOnce(p) && still()) loadFull(false); else afterPreview(); };
-    big.src = full;
+  // Mỗi bước thành công thì thay ảnh đang hiện rồi mới sang bước sau (tuần tự, huỷ được): 1000px nhẹ (~100–200 KB) cho ảnh nét ngay,
+  // rồi mới tới bản 1600/2000px và cuối cùng là ảnh gốc.
+  const loadStage = (size, next, retry = true) => {
+    const im = new Image(); LB.big = im; const url = thumbAt(p, size);
+    im.onload = () => { if (still() && img.dataset.quality !== 'original') img.src = url; next(); };
+    im.onerror = async () => { if (retry && await renewOnce(p) && still()) loadStage(size, next, false); else next(); };
+    im.src = url;
   };
-  LB.bigTimer = setTimeout(() => { if (still()) loadFull(true); }, 150);
+  const FULL = COARSE() ? 1600 : 2000; // điện thoại: 1600px đủ nét, giải mã nhẹ hơn
+  LB.bigTimer = setTimeout(() => { if (still()) loadStage(1000, () => { if (still()) loadStage(FULL, afterPreview); }); }, 150);
   $('#lbCount').textContent = `${LB.idx + 1} / ${S.visible.length}  ·  ${p.name}`;
   const dl = $('#downloadBtn'); dl.href = p.dl; dl.download = p.name; dl._item = p; dl.querySelector('span').textContent = `${t('dl')} (${p.onlyRaw ? 'RAW' : p.ext})`; show(dl, !S.share || S.share.allowDownload);
   const dr = $('#downloadRawBtn'); show(dr, !!p.raw); if (p.raw) { dr.href = p.raw.dl; dr.download = p.raw.name; dr._item = p.raw; }
@@ -140,9 +145,15 @@ function lbShow() {
   renderInfo(p);
   if (!p.metaFull && !S.backend.demo) S.backend.drive.meta(p.id).then((m) => { p.metaFull = true; if (m && m.imageMediaMetadata) { p.meta = { ...p.meta, ...m.imageMediaMetadata }; if (S.visible[LB.idx] === p) renderInfo(p); } }).catch(() => {});
 }
-// Ảnh lân cận ±3: chỉ bản 600px (nhẹ, đúng URL dùng cho xem trước tức thì) để bấm mũi tên là hiện ngay.
+// Ảnh lân cận ±2: chỉ bản 600px (nhẹ, đúng URL dùng cho xem trước tức thì) để bấm mũi tên là hiện ngay.
 function preloadNeighbours() {
-  for (let d = 1; d <= 3; d++) [S.visible[LB.idx + d], S.visible[LB.idx - d]].forEach((n) => { if (n) { const i = new Image(); i.src = thumbAt(n, 600); LB.pre.push(i); } });
+  for (let d = 1; d <= 2; d++) {
+    [S.visible[LB.idx + d], S.visible[LB.idx - d]].forEach((n) => {
+      if (!n) return; const url = thumbAt(n, 600);
+      if (LB.preSet.has(url)) return; // đã tải (hoặc đang tải) rồi
+      const i = new Image(); i.src = url; LB.preSet.add(url); LB.pre.push({ i, url });
+    });
+  }
 }
 function lbMove(d) { const n = LB.idx + d; if (n < 0 || n >= S.visible.length) return; LB.idx = n; lbShow(); }
 function lbReset() { LB.zoom = false; LB.x = LB.y = 0; lbImg().style.transform = ''; lbImg().classList.remove('zoomed'); }

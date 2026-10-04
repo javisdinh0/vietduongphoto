@@ -33,17 +33,17 @@ test('lướt nhanh bằng mũi tên: chỉ tải bản lớn cho ảnh dừng l
   expect(big.length).toBeLessThanOrEqual(2);                             // trước đây mỗi bước một yêu cầu bản lớn
   const ids = await page.evaluate(() => window.__vd.visible.map((p) => p.id));
   expect(reqs.some((u) => u.endsWith(`${ids[8]}=s600`))).toBe(true);     // ảnh hiện tại có bản 600px
-  expect(reqs.some((u) => u.endsWith(`${ids[11]}=s600`))).toBe(true);    // lân cận +3 đã tải sẵn
+  expect(reqs.some((u) => u.endsWith(`${ids[10]}=s600`))).toBe(true);    // lân cận +2 đã tải sẵn
 });
 
-test('ảnh lân cận ±3 được tải sẵn bản 600px ngay khi mở ảnh', async ({ page }) => {
+test('ảnh lân cận ±2 được tải sẵn bản 600px ngay khi mở ảnh', async ({ page }) => {
   const reqs = [];
   await setup(page, { ok: () => true, onReq: (u) => reqs.push(u) });
   await page.locator('.gallery-item').nth(4).click();
   await loaded(page);
   await page.waitForTimeout(300);
   const ids = await page.evaluate(() => window.__vd.visible.map((p) => p.id));
-  for (const d of [1, 2, 3, -1, -2, -3]) expect(reqs.some((u) => u.endsWith(`${ids[4 + d]}=s600`)), `lân cận ${d}`).toBe(true);
+  for (const d of [1, 2, -1, -2]) expect(reqs.some((u) => u.endsWith(`${ids[4 + d]}=s600`)), `lân cận ${d}`).toBe(true);
 });
 
 test('link thumbnail hết hạn: xin link mới một lần rồi hiện ảnh', async ({ page }) => {
@@ -64,4 +64,33 @@ test('thumbnail lỗi tạm thời (giới hạn tốc độ): thử lại sau v
   await page.evaluate(() => { window.__vd.backend.drive.thumbs = async () => ({}); });   // không có link mới → chỉ có thử lại
   await page.locator('.gallery-item').first().click();
   await loaded(page);                                                    // sau ~1,5s ảnh 600px (hoặc bản lớn) cũng đã hiện
+});
+
+test('ba bước: 600px → 1000px → bản lớn, đúng thứ tự', async ({ page }) => {
+  const reqs = [];
+  await setup(page, { ok: () => true, onReq: (u) => reqs.push(u) });
+  await page.locator('.gallery-item').first().click();
+  await loaded(page);
+  await expect.poll(() => reqs.some((u) => /=s2000$/.test(u))).toBe(true);
+  const id = await page.evaluate(() => window.__vd.visible[0].id);
+  const at = (s) => reqs.findIndex((u) => u.endsWith(`${id}=s${s}`));
+  expect(at(600)).toBeGreaterThanOrEqual(0);
+  expect(at(1000)).toBeGreaterThan(at(600));
+  expect(at(2000)).toBeGreaterThan(at(1000));
+  // bước 1000px thật sự hiện ra (ảnh nét hơn bản 600px) trước khi có ảnh gốc
+  await expect.poll(() => page.locator('#lightboxImg').getAttribute('src')).toMatch(/s(1000|2000)$|^blob:/);
+});
+
+test('đi tới rồi lui: không tải lại ảnh lân cận đã có', async ({ page }) => {
+  const reqs = [];
+  await setup(page, { ok: () => true, onReq: (u) => reqs.push(u) });
+  await page.locator('.gallery-item').nth(3).click();
+  await loaded(page);
+  await page.waitForTimeout(300);
+  const ids = await page.evaluate(() => window.__vd.visible.map((p) => p.id));
+  const count = (id) => reqs.filter((u) => u.endsWith(`${id}=s600`)).length;
+  await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowLeft');
+  await page.waitForTimeout(500);
+  expect(count(ids[4])).toBeLessThanOrEqual(2);   // ảnh +1: tải sẵn một lần; lần xem trực tiếp có thể thêm một lần, không lặp theo số lần bấm
+  expect(count(ids[5])).toBeLessThanOrEqual(1);   // ảnh +2: chỉ tải sẵn một lần dù bấm qua lại
 });
