@@ -32,6 +32,8 @@ function bind() {
   $('#favOnly').addEventListener('change', (e) => { S.filters.fav = e.target.checked; saveFilters(); route(); });
   $('#refreshBtn').addEventListener('click', () => loadLibrary(true));
   $('#selectBtn').addEventListener('click', () => (S.selectMode ? exitSelect() : enterSelect()));
+  $('#tabSelect').addEventListener('click', () => (S.selectMode ? exitSelect() : enterSelect()));
+  $('#tabMore').addEventListener('click', () => (S.isAdmin ? openSettings() : $('#logoutBtn').click()));
   $('#selCancel').addEventListener('click', exitSelect);
   $('#selAll').addEventListener('click', () => { S.visible.forEach((p) => S.selected.add(p.id)); document.querySelectorAll('.gallery-item').forEach((n) => n.classList.add('selected')); updateSelectBar(); });
   // Tải thẳng về máy (kể cả điện thoại): attribute `download` bị bỏ qua với link khác origin → tự fetch blob rồi lưu, không mở tab mới.

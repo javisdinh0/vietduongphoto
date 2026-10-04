@@ -58,7 +58,10 @@
         <div id="app" class="hidden">
             <div id="hero"></div>
             <nav id="crumbs" class="crumbs"></nav>
-            <div id="viewActions" class="view-actions"></div>
+            <div id="pageHead" class="page-head">
+                <div id="pageTitles" class="page-titles hidden"><h2 id="pageTitle"></h2><p id="pageSub"></p></div>
+                <div id="viewActions" class="view-actions"></div>
+            </div>
             <div id="toolbar" class="toolbar">
                 <div class="search"><i class="fas fa-search"></i><input id="searchInput" type="search" placeholder="Tìm theo tên ảnh..." data-i18n-ph="search"></div>
                 <select id="yearSel"></select>
@@ -85,6 +88,13 @@
         <button class="btn btn-sm hidden" id="zipCancel"><i class="fas fa-ban"></i></button>
         <button class="btn btn-sm" id="selCancel"><span data-i18n="cancel">Huỷ</span></button>
     </div>
+
+    <nav id="bottomNav" class="bottom-nav hidden" aria-label="Điều hướng">
+        <a href="#/" data-tab="home"><i class="fas fa-folder"></i><span data-i18n="home">Thư viện</span></a>
+        <a href="#/fav" data-tab="fav"><i class="fas fa-heart"></i><span data-i18n="fav">Yêu thích</span></a>
+        <button id="tabSelect" type="button"><i class="fas fa-square-check"></i><span data-i18n="select">Chọn</span></button>
+        <button id="tabMore" type="button"><i class="fas fa-gear"></i><span id="tabMoreLabel">Cài đặt</span></button>
+    </nav>
 
     <div id="toast" class="toast hidden"></div>
 

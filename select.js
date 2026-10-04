@@ -10,4 +10,5 @@ export function updateSelectBar() {
   show($('#selectBar'), S.selectMode);
   $('#selCount').textContent = `${S.selected.size} ${t('selected')}`;
   show($('#selRemove'), S.isAdmin && S.route.type === 'valbum');
+  $('#tabSelect').classList.toggle('active', S.selectMode);
 }

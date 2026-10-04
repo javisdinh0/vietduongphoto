@@ -27,17 +27,30 @@ function restoreScroll(y) {
   });
 }
 
+// Tiêu đề lớn của trang (album/thư mục/tất cả/yêu thích) + số ảnh; trang chủ không dùng.
+function setTitle(title, n) {
+  $('#pageTitle').textContent = title; $('#pageSub').textContent = `${n} ${t('photos')}`; show($('#pageTitles'));
+}
+// Thanh điều hướng dưới (điện thoại): tab đang xem + nhãn tab cuối (admin: Cài đặt, người khác: Đăng xuất).
+function updateTabs() {
+  show($('#bottomNav'), S.loaded);
+  const home = S.route.type === 'fav' ? 'fav' : 'home';
+  document.querySelectorAll('#bottomNav [data-tab]').forEach((a) => a.classList.toggle('active', a.dataset.tab === home));
+  $('#tabSelect').classList.toggle('active', S.selectMode);
+  $('#tabMoreLabel').textContent = t(S.isAdmin ? 'tabSettings' : 'logout');
+  $('#tabMore').firstElementChild.className = S.isAdmin ? 'fas fa-gear' : 'fas fa-right-from-bracket';
+}
 export function route() {
   S.route = parseHash(location.hash);
   S.loadMore = null;
-  $('#hero').innerHTML = ''; const view = $('#view'); view.innerHTML = ''; view.className = '';
+  $('#hero').innerHTML = ''; show($('#pageTitles'), false); const view = $('#view'); view.innerHTML = ''; view.className = '';
   const crumbs = $('#crumbs'); crumbs.innerHTML = ''; $('#viewActions').innerHTML = '';
   const addCrumb = (label, href) => { if (crumbs.children.length) crumbs.appendChild(el('span', 'sep', '/')); if (href) { const a = el('a', '', label); a.href = href; crumbs.appendChild(a); } else crumbs.appendChild(el('span', 'cur', label)); };
   const r = S.route;
   const searching = !!S.filters.q.trim();
   if (r.type === 'home') {
     addCrumb(t('home'));
-    if (searching) return renderPhotos(view, S.photos);
+    if (searching) { renderPhotos(view, S.photos); return updateTabs(); }
     renderHero($('#hero'));
     renderAlbumGrid(view, [
       { name: t('all'), count: S.photos.length, cover: S.photos[0], href: '#/all' },
@@ -49,15 +62,15 @@ export function route() {
     else { show($('#timeline'), false); S.visible = []; }
     if (S.isAdmin) viewActionBtn('fa-folder-plus', t('addAlbum'), () => toast(t('select')) || enterSelect());
   } else if (r.type === 'photo') {
-    addCrumb(t('home'), '#/'); addCrumb(t('all')); renderPhotos(view, S.photos); updateSelectBar();
+    addCrumb(t('home'), '#/'); addCrumb(t('all')); setTitle(t('all'), S.photos.length); renderPhotos(view, S.photos); updateSelectBar(); updateTabs();
     if (S.byId.has(r.id)) openLightbox(r.id); else toast(t('notFound'));
     return;
-  } else if (r.type === 'all') { addCrumb(t('home'), '#/'); addCrumb(t('all')); renderPhotos(view, S.photos); }
-  else if (r.type === 'fav') { addCrumb(t('home'), '#/'); addCrumb(t('fav')); renderPhotos(view, S.photos.filter((p) => S.favs.has(p.id))); }
+  } else if (r.type === 'all') { addCrumb(t('home'), '#/'); addCrumb(t('all')); setTitle(t('all'), S.photos.length); renderPhotos(view, S.photos); }
+  else if (r.type === 'fav') { const fl = S.photos.filter((p) => S.favs.has(p.id)); addCrumb(t('home'), '#/'); addCrumb(t('fav')); setTitle(t('fav'), fl.length); renderPhotos(view, fl); }
   else if (r.type === 'folder') {
     const f = S.folders.get(r.id);
     if (!f) { view.appendChild(el('p', 'empty-state', t('notFound'))); return; }
-    addCrumb(t('home'), '#/');
+    addCrumb(t('home'), '#/'); setTitle(f.name, f.deep.length);
     const chain = []; for (let c = f; c && c.id !== S.root.id; c = S.folders.get(c.parent)) chain.unshift(c);
     chain.forEach((c, i) => addCrumb(c.name, i === chain.length - 1 ? null : '#/f/' + encodeURIComponent(c.id)));
     if (f.children.length) renderAlbumGrid(view, f.children.map(folderCard), t('subAlbums'));
@@ -67,7 +80,7 @@ export function route() {
   } else if (r.type === 'valbum') {
     const a = S.vAlbums.find((x) => x.id === r.id);
     if (!a) { addCrumb(t('home'), '#/'); view.appendChild(el('p', 'empty-state', t('notFound'))); return; }
-    addCrumb(t('home'), '#/'); addCrumb(a.name);
+    addCrumb(t('home'), '#/'); addCrumb(a.name); setTitle(a.name, (a.fileIds || []).filter((i) => S.byId.has(i)).length);
     viewActionBtn('fa-link', t('share'), copyLink);
     if (S.isAdmin) {
       viewActionBtn('fa-pen', t('rename'), async () => { const n = prompt(t('renamePrompt'), a.name); if (n && n.trim()) { try { await S.backend.store.updateAlbum(a.id, { name: n.trim() }); a.name = n.trim(); route(); } catch (e) { saveFail(e, t('saveErr')); } } });
@@ -75,7 +88,7 @@ export function route() {
     }
     renderPhotos(view, (a.fileIds || []).map((i) => S.byId.get(i)).filter(Boolean));
   }
-  updateSelectBar();
+  updateSelectBar(); updateTabs();
 }
 // Phần giới thiệu ở trang chủ: tiêu đề + mosaic 3 ảnh mới nhất (ẩn mosaic khi chưa đủ ảnh).
 function renderHero(container) {

@@ -18,7 +18,7 @@ const I18N = {
     removed: 'Đã bỏ khỏi album', coverSet: 'Đã đặt ảnh bìa', reqSent: 'Đã gửi yêu cầu cho chủ thư viện', saveErr: 'Không lưu được (Firestore từ chối hoặc chưa bật Google sign-in)',
     zipping: 'Đang nén', zipBig: 'Tổng dung lượng khoảng {mb} MB, tiếp tục?', nothing: 'Chưa chọn ảnh nào', pickOne: 'Chọn đúng 1 ảnh làm bìa',
     subAlbums: 'Album con', photosHere: 'Ảnh trong album', openDrive: 'Đang tải cây thư mục...', selected: 'đã chọn',
-    updated: 'Đã cập nhật thư viện', heroEyebrow: 'Thư viện ảnh', heroA: 'Những khoảnh khắc đáng nhớ, ', heroB: 'gọn gàng', heroC: ' một chỗ', heroDesc: 'Ảnh được xếp theo từng chuyến đi và từng ngày chụp. Chỉ cần chọn album là xem, tải hoặc chia sẻ.', by_day: 'Theo ngày', by_month: 'Theo tháng', by_year: 'Theo năm', cancelled: 'Đã huỷ',
+    updated: 'Đã cập nhật thư viện', tabSettings: 'Cài đặt', heroEyebrow: 'Thư viện ảnh', heroA: 'Những khoảnh khắc đáng nhớ, ', heroB: 'gọn gàng', heroC: ' một chỗ', heroDesc: 'Ảnh được xếp theo từng chuyến đi và từng ngày chụp. Chỉ cần chọn album là xem, tải hoặc chia sẻ.', by_day: 'Theo ngày', by_month: 'Theo tháng', by_year: 'Theo năm', cancelled: 'Đã huỷ',
     infoName: 'Tên', infoDate: 'Ngày chụp', infoSize: 'Kích thước', infoFile: 'Dung lượng', infoCam: 'Máy ảnh', infoLens: 'Ống kính', infoExp: 'Thông số',
   },
   en: {
@@ -37,7 +37,7 @@ const I18N = {
     removed: 'Removed from album', coverSet: 'Cover set', reqSent: 'Request sent to the library owner', saveErr: 'Could not save (Firestore denied or Google sign-in not enabled)',
     zipping: 'Zipping', zipBig: 'Total about {mb} MB, continue?', nothing: 'Nothing selected', pickOne: 'Select exactly 1 photo for the cover',
     subAlbums: 'Sub-albums', photosHere: 'Photos in album', openDrive: 'Loading folder tree...', selected: 'selected',
-    updated: 'Library updated', heroEyebrow: 'Photo library', heroA: 'Memories worth keeping, ', heroB: 'neatly', heroC: ' in one place', heroDesc: 'Photos are organised by trip and by day. Pick an album to view, download or share.', by_day: 'By day', by_month: 'By month', by_year: 'By year', cancelled: 'Cancelled',
+    updated: 'Library updated', tabSettings: 'Settings', heroEyebrow: 'Photo library', heroA: 'Memories worth keeping, ', heroB: 'neatly', heroC: ' in one place', heroDesc: 'Photos are organised by trip and by day. Pick an album to view, download or share.', by_day: 'By day', by_month: 'By month', by_year: 'By year', cancelled: 'Cancelled',
     infoName: 'Name', infoDate: 'Taken', infoSize: 'Dimensions', infoFile: 'File size', infoCam: 'Camera', infoLens: 'Lens', infoExp: 'Exposure',
   },
 };

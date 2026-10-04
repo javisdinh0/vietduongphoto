@@ -60,7 +60,7 @@ export function doLogoutState() {
   S.token = null; S.loaded = false; S.isAdmin = false; S.selectMode = false; S.selected.clear();
   clearTimeout(refreshTimer); lsDel('vd_photo_access_token'); lsDel('vd_photo_token_expiry');
   show($('#logoutBtn'), false); show($('#loginBtn')); show($('#settingsBtn'), false);
-  show($('#app'), false); show($('#timeline'), false); show($('#selectBar'), false); show($('#loginScreen'));
+  show($('#app'), false); show($('#timeline'), false); show($('#selectBar'), false); show($('#bottomNav'), false); show($('#loginScreen'));
 }
 
 export async function initAuth() {

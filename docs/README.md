@@ -56,7 +56,10 @@ Không có proxy: token Google sống ~1 giờ; mở lại sau đó chỉ thử 
 - **Lưu ý bảo mật:** `rt` trong localStorage vẫn là "chìa khoá dài hạn" của trình duyệt đó — ai lấy được cả `rt` lẫn gọi từ đúng origin mới dùng được; đừng bật trên máy dùng chung. Nếu Google không trả refresh token (đã cấp trước đó) app vẫn đăng nhập được nhưng chỉ 1 giờ. Chưa thử với Google thật vì cần client secret của chủ dự án.
 
 ## CI và kiểm thử
-- `npm run lint` (ESLint, `eslint.config.mjs`: bắt biến chưa khai báo/import thừa), `npm test` (node:test: logic, Drive giả + proxy, Worker auth), `npm run test:ui` (Playwright/Chromium, `tests/ui/*.spec.mjs`, chạy ở `?demo=1` nên không cần tài khoản: trang chủ, khách vs admin, album lồng nhau, lightbox + phím tắt, link `#/p/<id>`, tìm kiếm, chọn nhiều → album ảo → đổi tên/xoá, zip, ngôn ngữ/theme, recycling 600 ảnh; mỗi test fail nếu có lỗi JS/console).
+- `npm run lint` (ESLint, `eslint.config.mjs`: bắt biến chưa khai báo/import thừa), `npm test` (node:test: logic, Drive giả + proxy, Worker auth), `npm run test:ui` (Playwright/Chromium, `tests/ui/*.spec.mjs` gồm `gallery` và `nav`: tiêu đề trang, thanh điều hướng dưới trên viewport 390px, không tràn ngang, chạy ở `?demo=1` nên không cần tài khoản: trang chủ, khách vs admin, album lồng nhau, lightbox + phím tắt, link `#/p/<id>`, tìm kiếm, chọn nhiều → album ảo → đổi tên/xoá, zip, ngôn ngữ/theme, recycling 600 ảnh; mỗi test fail nếu có lỗi JS/console).
 - Lần đầu chạy UI cục bộ: `npm i` rồi `npx playwright install chromium`.
 - `.github/workflows/ci.yml` chạy cả ba trên mỗi push vào `main` và mỗi pull request; fail thì tải artifact `playwright-report`.
 - Chưa phủ: đăng nhập Google/Firebase thật (cần tài khoản), Drive thật, proxy đã deploy.
+
+## Giao diện điện thoại
+Dưới 768px có thanh điều hướng dưới (Thư viện / Yêu thích / Chọn / Cài đặt — người không phải admin thì tab cuối là Đăng xuất); các nút Cài đặt/Đăng xuất/ividlab ở header được ẩn vì đã có ở thanh dưới, thanh chọn ảnh nổi phía trên thanh điều hướng. Trang album/thư mục/tất cả/yêu thích có tiêu đề serif lớn + số ảnh (`#pageTitle`, `#pageSub`).
