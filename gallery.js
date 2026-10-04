@@ -151,11 +151,11 @@ function photoCard(p) {
   if (recycler) { recycler.observe(item); emptier.observe(item); }
   return item;
 }
-// Hai ngưỡng (có độ trễ): điền nội dung khi thẻ vào vùng M, chỉ gỡ khi thẻ ra khỏi vùng 1,5·M. Một ngưỡng duy nhất làm các thẻ ở biên
+// Hai ngưỡng (có độ trễ): điền nội dung khi thẻ vào vùng M, chỉ gỡ khi thẻ ra khỏi vùng 1,5·M (1,3·M trên điện thoại). Một ngưỡng duy nhất làm các thẻ ở biên
 // bị dựng rồi gỡ liên tục khi kéo qua lại (nhất là lúc kéo bật lại ở cuối album trên iOS).
 function newRecycler() {
   if (recycler) recycler.disconnect(); if (emptier) emptier.disconnect();
   const m = isCoarse() ? 1000 : 2500;
   recycler = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) fillCard(e.target, e.target._p); }), { rootMargin: `${m}px 0px` });
-  emptier = new IntersectionObserver((es) => es.forEach((e) => { if (!e.isIntersecting) emptyCard(e.target); }), { rootMargin: `${Math.round(m * 1.5)}px 0px` });
+  emptier = new IntersectionObserver((es) => es.forEach((e) => { if (!e.isIntersecting) emptyCard(e.target); }), { rootMargin: `${Math.round(m * (isCoarse() ? 1.3 : 1.5))}px 0px` }); // điện thoại: dải trễ hẹp hơn để vẫn nhẹ RAM
 }

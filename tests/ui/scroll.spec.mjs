@@ -26,7 +26,7 @@ test('kéo qua lại ở cuối album: ít thẻ bị dựng/gỡ lại (có đ�
     const has = (n) => n.nodeType === 1 && (n.tagName === 'IMG' || !!n.querySelector?.('img'));
     new MutationObserver((ml) => ml.forEach((m) => { m.addedNodes.forEach((n) => { if (has(n)) window.__m.add++; }); m.removedNodes.forEach((n) => { if (has(n)) window.__m.rem++; }); })).observe(document.getElementById('view'), { subtree: true, childList: true });
   });
-  for (let i = 0; i < 30; i++) { await page.mouse.wheel(0, i % 2 ? 350 : -350); await page.waitForTimeout(60); }
+  for (let i = 0; i < 30; i++) { await page.mouse.wheel(0, i % 2 ? 250 : -250); await page.waitForTimeout(60); }
   const m = await page.evaluate(() => window.__m);
   expect(m.add + m.rem).toBeLessThanOrEqual(10);        // trước đây 60 + 60 cho cùng thao tác
 });

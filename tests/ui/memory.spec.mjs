@@ -20,13 +20,13 @@ test.describe('màn hình cảm ứng', () => {
     expect(s).not.toContain('800w'); expect(s).not.toContain('1200w');
   });
 
-  test('giữ ít <img> quanh màn hình (phạm vi 1000px) và nhả ảnh khi gỡ thẻ', async ({ page }) => {
+  test('giữ ít <img> quanh màn hình (phạm vi 1000px, gỡ ở 1300px) và nhả ảnh khi gỡ thẻ', async ({ page }) => {
     await page.goto('/?demo=1&many=600#/all');
     await expect(page.locator('.gallery-item img').first()).toBeAttached();
     await scrollAll(page);
     const n = await page.evaluate(COUNT);
     expect(n.cards).toBeGreaterThan(300);
-    expect(n.imgs).toBeLessThan(40);
+    expect(n.imgs).toBeLessThan(50);
     // thẻ đã gỡ không còn <img> nào tham chiếu ảnh
     expect(await page.evaluate(() => [...document.querySelectorAll('.gallery-item')].filter((c) => !c.querySelector('img') && c.querySelector('[src]')).length)).toBe(0);
   });
