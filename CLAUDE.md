@@ -11,7 +11,7 @@ Hướng dẫn cho Claude Code khi làm việc trong repo này.
 ```bash
 npm test          # node:test — tests/*.test.mjs (logic thuần, tích hợp Drive giả + proxy, auth worker)
 npm run lint      # eslint .
-npm run test:ui   # Playwright (Chromium, chế độ demo) — cần: npx playwright install chromium
+npm run test:ui   # Playwright (Chromium, chế độ demo, tests/ui/*.spec.mjs) — cần: npx playwright install chromium
 npx http-server . # chạy cục bộ; thêm ?demo=1 để dùng dữ liệu Drive giả, không cần đăng nhập
 ```
 
@@ -34,10 +34,12 @@ Windows: Node không có trong PATH của shell mới — dùng PowerShell với
 - **Đường dẫn tương đối.** Site chạy ở thư mục con `/vietduongphoto/` nên favicon/manifest/`sw.js`… phải là đường dẫn tương đối, không dùng `/xxx` tuyệt đối.
 - **Origin của proxy** (`ALLOWED_ORIGIN` trong `proxy/wrangler.toml`, `worker.js`, test) là `https://javisdinh0.github.io` — origin không kèm đường dẫn. Đổi domain thì phải đổi cả ba + OAuth + Firebase.
 - **Thumbnail giữ đúng tỉ lệ:** Drive trả `width/height` chưa xoay EXIF; `LIST_FIELDS` xin thêm `rotation` và `buildLibrary` đổi chỗ `w`/`h` khi rotation lẻ. Thiếu kích thước thì `setCardRatio` lấy từ `naturalWidth/Height` khi ảnh tải xong. Giữ nguyên khi sửa lưới ảnh.
-- **Nút tải về** tự fetch blob qua Drive API (`alt=media`) rồi lưu bằng `<a download>`: thuộc tính `download` bị bỏ qua với link khác origin, và `target=_blank` mở tab mới trên điện thoại. Đừng quay lại dùng link thẳng.
+- **Nút tải về** (`#downloadBtn`/`#downloadRawBtn` trong lightbox) tự fetch blob qua Drive API (`alt=media`) rồi lưu bằng `<a download>`: thuộc tính `download` bị bỏ qua với link khác origin, và `target=_blank` mở tab mới trên điện thoại. Đừng quay lại dùng link thẳng.
+- **Lightbox tải ảnh gốc:** `lightbox.js` hiện thumbnail 600px → 2000px ngay, rồi sau khi dừng ở một ảnh ~0,35s thì tải file gốc thành blob (`drive.blob(p, signal)`, huỷ được bằng `AbortController`) và gán làm `src`, để nhấn giữ/chuột phải "Lưu ảnh" ra đúng bản gốc. `img.dataset.quality` là `preview` hoặc `original` (ảnh 2000px không được ghi đè lên ảnh gốc đã nạp; test UI dựa vào thuộc tính này). Chỉ áp dụng cho jpg/png/webp/gif/bmp; HEIC/RAW/lỗi mạng giữ bản xem trước. Lướt nhanh thì huỷ, nhớ `lbCancelOriginal()` (thu hồi blob URL) khi thêm đường thoát mới khỏi lightbox.
 - **Đăng nhập:** Google Identity Services (scope `drive.readonly email`); access token được đổi sang phiên Firebase bằng `signInWithCredential` — cần bật provider Google ở Firebase Auth **và** safelist client ID OAuth của app (xem docs/README.md). Google OAuth Client phải có origin `https://javisdinh0.github.io`, Firebase Authorized domains phải có `javisdinh0.github.io`.
 - Admin phía client có fallback email, nhưng rules chỉ tin `config/owners.emails` (chữ thường).
 - Key localStorage: `vdphoto_theme`, `vdphoto_lang` (đọc thêm `ividlab-*` cũ làm dự phòng, không ghi), `vdphoto_layout`, `vdphoto_tl`, `vd_photo_email`, `vd_photo_rt`.
+- **Giao diện (theme ấm tối giản):** nền kem, tiêu đề serif *Newsreader*, chữ *Be Vietnam Pro* (Google Fonts, nạp trong `index.html`), màu nhấn terracotta `#b4533a` (cũng là `theme-color` và `manifest`). Trang chủ (`#/`) có hero (`renderHero` trong `router.js`, chuỗi `heroEyebrow/heroA/B/C/heroDesc` trong `i18n.js` cho cả `vi` và `en`, mosaic 3 ảnh mới nhất) và **không hiện timeline** (`S.route.type !== 'home'`). Thanh chọn nổi, chip lọc, lightbox đều dùng biến màu trong `style.css` — sửa màu ở biến, đừng hard-code. Thêm chuỗi giao diện thì thêm ở cả `vi` lẫn `en`.
 - Không còn nạp `traffic-track.js` của ividlab, nên site này không đẩy lượt xem vào dashboard `/admin` của ividlab.
 - Repo **public**: không commit secret. Client secret/`TOKEN_KEY` của proxy chỉ đặt bằng `wrangler secret put`.
 
