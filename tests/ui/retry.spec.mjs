@@ -39,7 +39,8 @@ test('lỗi liên tục: hiện "chạm để thử lại", chạm thì tải l�
   expect(log.filter((u) => u.endsWith('=s1000')).length).toBe(4);   // 1 lần đầu + 3 lần thử lại
   ok = true;
   await pill.click();
-  await expect.poll(() => page.locator('#lightboxImg').getAttribute('src'), { timeout: 8000 }).toMatch(/=s(1000|2000)$/);
+  // chạm → bước 1000px thành công → chuỗi chạy tiếp sang bản lớn (chỉ xảy ra sau khi 1000px về được); không dựa vào src tạm thời vì ảnh gốc về rất nhanh
+  await expect.poll(() => log.some((u) => u.endsWith('=s2000')), { timeout: 8000 }).toBe(true);
   await expect(pill).not.toContainText('thử lại');
 });
 

@@ -47,13 +47,14 @@ test('ảnh lân cận ±2 được tải sẵn bản 600px ngay khi mở ảnh'
 });
 
 test('link thumbnail hết hạn: xin link mới một lần rồi hiện ảnh', async ({ page }) => {
-  await setup(page, { ok: (u) => !u.includes('/stale/') && !u.includes(`${IMG}/f-dalat`) });   // link gốc (img.test/f-dalat-*) hỏng
+  const reqs = [];
+  await setup(page, { ok: (u) => !u.includes('/stale/') && !u.includes(`${IMG}/f-dalat`), onReq: (u) => reqs.push(u) });   // link gốc (img.test/f-dalat-*) hỏng
   await page.evaluate((base) => {
     window.__n = 0;
     window.__vd.backend.drive.thumbs = async (ids) => { window.__n++; return Object.fromEntries(ids.map((id) => [id, `${base}/fresh/${id}=s220`])); };
   }, IMG);
   await page.locator('.gallery-item').first().click();
-  await expect.poll(() => page.locator('#lightboxImg').getAttribute('src')).toContain('/fresh/');
+  await expect.poll(() => reqs.some((u) => u.includes('/fresh/') && u.endsWith('=s600'))).toBe(true);   // dùng link mới để tải lại ảnh xem trước (không dựa vào src tạm thời)
   await loaded(page);
   expect(await page.evaluate(() => window.__n)).toBe(1);                 // đúng một lần xin link mới
 });
