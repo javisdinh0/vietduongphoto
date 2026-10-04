@@ -17,29 +17,37 @@ function lbTogglePlay() {
   const b = $('#lbPlay'); b.classList.add('on'); b.firstElementChild.className = 'fas fa-pause';
   LB.play = setInterval(() => { if (LB.idx >= S.visible.length - 1) LB.idx = -1; lbMove(1); }, 4000);
 }
-// Ảnh gốc: sau khi dừng ở một ảnh ~0,35s thì tải file gốc từ Drive thành blob và gán làm nguồn <img>,
+// Ảnh gốc: sau khi dừng ở một ảnh ~0,25s thì tải file gốc từ Drive (có tiến độ) thành blob và gán làm nguồn <img>,
 // nên nhấn giữ / chuột phải "Lưu ảnh" ra đúng file chất lượng gốc (không phải thumbnail). Lướt nhanh thì huỷ, không tải thừa.
-// Định dạng trình duyệt không hiển thị được (HEIC, RAW) hoặc lỗi mạng: giữ bản xem trước.
-const ORIG_EXT = /^(jpe?g|png|webp|gif|bmp)$/i;
+// Chỉ báo `#lbQuality` cho người dùng biết khi nào ảnh gốc sẵn sàng (trước đó ảnh hiển thị là bản xem trước 2000px).
+// Định dạng trình duyệt không hiển thị được (HEIC, RAW) hoặc lỗi mạng: giữ bản xem trước và báo rõ.
+const ORIG_EXT = new Set(['JPG', 'PNG', 'WEBP', 'GIF', 'BMP']);
+const mb = (n) => (n ? ` (${(n / 1e6).toFixed(1)} MB)` : '');
+function setQuality(kind, text) {
+  const q = $('#lbQuality'); show(q, !!kind); q.className = 'lb-quality ' + (kind || 'hidden'); q.textContent = text || '';
+}
 function lbCancelOriginal() {
   clearTimeout(LB.orig.timer); if (LB.orig.ctrl) LB.orig.ctrl.abort();
   if (LB.orig.url) URL.revokeObjectURL(LB.orig.url);
   LB.orig = { url: null, timer: null, ctrl: null };
+  setQuality('');
 }
 function lbLoadOriginal(p) {
-  if (p.onlyRaw || !ORIG_EXT.test(p.ext || '')) return;
+  if (p.onlyRaw || !ORIG_EXT.has(p.ext)) { setQuality('preview', t('origPreview')); return; }
   const ctrl = new AbortController(); LB.orig.ctrl = ctrl;
   LB.orig.timer = setTimeout(async () => {
+    const still = () => !ctrl.signal.aborted && S.visible[LB.idx] && S.visible[LB.idx].id === p.id;
+    setQuality('loading', `${t('origLoading')}${mb(p.size)}`);
     try {
-      const url = URL.createObjectURL(await S.backend.drive.blob(p, ctrl.signal));
-      const q = S.visible[LB.idx];
-      if (ctrl.signal.aborted || !q || q.id !== p.id) { URL.revokeObjectURL(url); return; }
+      const blob = await S.backend.drive.original(p, ctrl.signal, (got) => { if (still() && p.size) setQuality('loading', `${t('origLoading')} ${Math.min(99, Math.round((got / p.size) * 100))}%${mb(p.size)}`); });
+      if (!still()) return;
+      const url = URL.createObjectURL(blob);
       const probe = new Image();
-      probe.onload = () => { if (ctrl.signal.aborted) { URL.revokeObjectURL(url); return; } LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; };
-      probe.onerror = () => URL.revokeObjectURL(url);
+      probe.onload = () => { if (!still()) { URL.revokeObjectURL(url); return; } LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; setQuality('ready', `${t('origReady')}${mb(p.size)}`); };
+      probe.onerror = () => { URL.revokeObjectURL(url); if (still()) setQuality('fail', t('origFail')); };
       probe.src = url;
-    } catch (e) { /* giữ bản xem trước */ }
-  }, 350);
+    } catch (e) { if (still()) { console.warn('[vdphoto] không tải được ảnh gốc:', e); setQuality('fail', t('origFail')); } }
+  }, 250);
 }
 function lbShow() {
   const p = S.visible[LB.idx]; if (!p) return closeLightbox();

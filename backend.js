@@ -137,10 +137,18 @@ export function createDrive(getToken, apiKey, base = 'https://www.googleapis.com
       }
       return out;
     },
-    async stream(item) {
-      const r = await retryFetch(`${base}/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, auth());
+    async stream(item, signal) {
+      const r = await retryFetch(`${base}/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, { ...auth(), signal });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.body;
+    },
+    // File gốc cho lightbox: đọc luồng để báo tiến độ; kiểu MIME theo phản hồi của Drive.
+    async original(item, signal, onProgress) {
+      const r = await retryFetch(`${base}/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, { ...auth(), signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const reader = r.body.getReader(); const chunks = []; let got = 0;
+      for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; onProgress(got); }
+      return new Blob(chunks, { type: r.headers.get('Content-Type') || '' });
     },
     async blob(item, signal) {
       const r = await retryFetch(`${base}/drive/v3/files/${item.id}?alt=media&supportsAllDrives=true`, { ...auth(), signal });
@@ -276,6 +284,7 @@ export function createDemo(guest) {
       async stream(item) { return (await fetch(item.dl)).body; },
       async userEmail() { return guest ? 'khach@example.com' : ADMIN_FALLBACK; },
       async blob(item) { return (await fetch(item.dl)).blob(); },
+      async original(item, signal, onProgress) { const b = await (await fetch(item.dl)).blob(); onProgress(b.size); return b; },
     },
     store: {
       async signIn() {}, async signOut() {},

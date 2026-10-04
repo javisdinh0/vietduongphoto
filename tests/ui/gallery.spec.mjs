@@ -51,6 +51,8 @@ test('lightbox: mở, ←/→, yêu thích (F) lưu localStorage, Esc đóng', a
   // ảnh gốc được tải thành blob (nhấn giữ "Lưu ảnh" ra file gốc)
   await expect(page.locator('#lightboxImg')).toHaveAttribute('src', /^blob:/);
   await expect(page.locator('#lightboxImg')).toHaveAttribute('data-quality', 'original');
+  await expect(page.locator('#lbQuality')).toHaveClass(/ready/);
+  await expect(page.locator('#lbQuality')).toContainText('Ảnh gốc');
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('#lbCount')).toContainText('2 / 3');
   await page.keyboard.press('ArrowLeft');
