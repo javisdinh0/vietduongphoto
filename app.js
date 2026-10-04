@@ -12,6 +12,7 @@ import { exitSelect, enterSelect, updateSelectBar } from './select.js';
 import { downloadZip, ZIP } from './zipdl.js';
 import { initLightbox, loadOriginalForSave } from './lightbox.js';
 import { initShare, publicShareRequest, startPublicShare } from './share.js';
+import { initPwa } from './pwa.js';
 
 // ============================ Khởi động ============================
 function bind() {
@@ -65,7 +66,7 @@ try {
   const f = JSON.parse(sessionStorage.getItem('vdphoto_filters') || 'null');
   if (f) { S.filters = { q: f.q || '', year: f.year || '', raw: !!f.raw, fav: !!f.fav }; $('#searchInput').value = S.filters.q; $('#rawOnly').checked = S.filters.raw; $('#favOnly').checked = S.filters.fav; }
 } catch (e) { /* bỏ qua */ }
-if ('serviceWorker' in navigator && !DEMO && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+initPwa();
 applyI18n(); applyTheme(document.documentElement.getAttribute('data-theme') || 'light'); bind();
 const pub = publicShareRequest(); // link chia sẻ công khai: không đăng nhập
 if (pub) startPublicShare(pub); else initAuth();

@@ -232,3 +232,8 @@ select, .form-group input { padding: .5rem .8rem; border-radius: 12px; border: 1
 
 /* chừa chỗ cho dòng thời gian cố định bên phải để nó không đè lên nút thao tác / cột ảnh (chỉ khi nó đang hiện, màn hình rộng) */
 @media (min-width: 769px) { main:has(#timeline:not(.hidden)) { padding-right: 8.5rem; } }
+
+/* thanh "Có bản mới" (service worker đã dựng phiên bản mới) */
+.update-bar { position: fixed; right: 1rem; bottom: 1rem; z-index: 160; display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .6rem .6rem .6rem 1rem; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); font-size: .9rem; max-width: calc(100% - 2rem); }
+@media (max-width: 768px) { .update-bar { left: 1rem; right: 1rem; bottom: calc(5rem + env(safe-area-inset-bottom)); justify-content: space-between; } }
+.public-share .update-bar { bottom: 1rem; }

@@ -37,6 +37,7 @@
     <link rel="modulepreload" href="zipclient.js">
     <link rel="modulepreload" href="zoom.js">
     <link rel="modulepreload" href="zip.js">
+    <link rel="modulepreload" href="pwa.js">
     <script>
         (function () {
             var saved = null;
@@ -119,6 +120,12 @@
         <button id="tabSelect" type="button"><span class="ti"><i class="fas fa-square-check"></i></span><span data-i18n="select">Chọn</span></button>
         <button id="tabMore" type="button"><span class="ti"><i class="fas fa-gear"></i></span><span id="tabMoreLabel">Cài đặt</span></button>
     </nav>
+
+    <div id="updateBar" class="update-bar hidden" role="status">
+        <span data-i18n="updateReady">Có bản mới của trang.</span>
+        <button id="updateReload" class="btn btn-sm btn-primary" data-i18n="updateReload">Tải lại</button>
+        <button id="updateLater" class="btn btn-sm" data-i18n="updateLater">Để sau</button>
+    </div>
 
     <div id="toast" class="toast hidden"></div>
 
