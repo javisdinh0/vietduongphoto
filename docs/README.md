@@ -184,3 +184,10 @@ Công cụ đo tại chỗ để lấy **số liệu thật từ iPhone** thay v
 - **Giới hạn:** Safari không có `longtask` nên không đo được tác vụ dài; bộ nhớ chỉ là ước tính từ kích thước ảnh (không đọc được bộ nhớ thật); thời gian từng ảnh lưới chỉ có `duration` (ảnh khác nguồn gốc không lộ kích thước).
 - Test: `tests/perf.test.mjs` (hàm thống kê/báo cáo thuần, điểm gắn đo tắt thì không tốn gì) và `tests/ui/perf-hud.spec.mjs` (bật/tắt/nhớ, số liệu thật khi cuộn/mở lightbox/zoom, sao chép, đặt lại, không che thanh dưới).
 - **Hai điều dễ làm sai số đo trên iPhone:** (1) **Chế độ nguồn điện thấp** (biểu tượng pin màu vàng) khiến Safari giới hạn ~30 khung/giây: bảng hiện `30fps`, mọi khung đều >25 ms nên số ">25ms" vô nghĩa — báo cáo tự cảnh báo khi trung vị ≥28 ms và có thêm chỉ số "bỏ lỡ ≥2 khung" (so với trung vị) để vẫn đọc được; tốt nhất tắt chế độ này khi đo (Cài đặt > Pin). (2) **Trình duyệt iOS không phải Safari (Edge, Chrome, Firefox)** chạy trên WKWebView và thường **không hỗ trợ service worker**: không có thanh "Có bản mới", không chạy ngoại tuyến, nhận bản mới theo bộ nhớ đệm HTTP (tối đa ~10 phút). Báo cáo ghi rõ "Trình duyệt: …· service worker: …"; muốn thử các tính năng service worker hãy dùng Safari.
+
+
+### Cập nhật đo hiệu năng (ảnh gốc & service worker)
+
+- Báo cáo `?perf=1` có thêm dòng "ảnh gốc, các bước": thời gian đổi base64 và giải mã. Ảnh gốc trên điện thoại giờ được giải mã ở luồng nền (`decode()`) rồi mới gắn vào ảnh đang hiện, nên không chặn luồng chính; ảnh lỗi thì giữ bản xem trước.
+- Dòng "Service worker:" cho biết bản đang dùng, bản trang này đã nạp, trang có cũ hơn bản đã dựng không, lần kiểm tra cuối. Nút **Kiểm tra bản mới** bỏ qua giới hạn 10 phút và ghi kết quả (`updated`/`same`/`error`).
+- Trang tự hỏi SW sau vài giây và khi quay lại màn hình; nếu đang chạy bản cũ hơn bản đã dựng thì hiện thanh "Có bản mới" (trước đây tin báo từ SW có thể bị lỡ nếu trang chưa sẵn sàng nhận).

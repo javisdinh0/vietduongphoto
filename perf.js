@@ -33,6 +33,7 @@ const pct = (a, n) => (n ? ` (${((a / n) * 100).toFixed(1)}%)` : '');
 const ms = (x) => (x == null ? 'n/a' : `${r0(x)} ms`);
 const fr = (h, med) => `${h.n} khung · >25ms: ${histOver(h, 25)}${pct(histOver(h, 25), h.n)} · >50ms: ${histOver(h, 50)}${pct(histOver(h, 50), h.n)} · >100ms: ${histOver(h, 100)} · bỏ lỡ ≥2 khung (>${r0(med * 1.9)}ms): ${histOver(h, med * 1.9)}${pct(histOver(h, med * 1.9), h.n)} · tệ nhất ${r0(h.max)} ms`;
 
+const swLine = (sw) => { const s = sw.status; const ago = (t) => (t ? `${Math.round((s.now - t) / 60000)} phút trước` : 'chưa'); return `Service worker: bản đang dùng ${s.current || '?'} · trang này nạp ${s.loaded || 'không rõ (SW từng bị tắt)'} · ${s.stale ? 'TRANG ĐANG CŨ HƠN BẢN ĐÃ DỰNG' : 'trang không cũ hơn'} · kiểm tra cuối ${ago(s.checked)}${s.result ? ` · kết quả kiểm tra thủ công: ${s.result}` : ''}`; };
 // d: ảnh chụp số liệu (xem snapshot()) → {text, json}. Hàm thuần để test.
 export function buildReport(d) {
   const A = d.frames.all; const med = histPct(A, 0.5) || 1; const L = d.lb; const lowRate = A.n >= 20 && med >= 28; const sw = d.env.sw || {}; const br = d.env.browser || {};
@@ -50,6 +51,8 @@ export function buildReport(d) {
     `Ảnh: lưới tải ${d.imgs.thumbOk}, lỗi ${d.imgs.thumbErr} · yêu cầu ảnh ${d.res.img.n}, thời gian p50 ${r0(d.res.img.p50)} ms, p95 ${r0(d.res.img.p95)} ms, >2 giây: ${d.res.slow2s}`,
     `Bộ nhớ ảnh (ước tính đã giải mã): hiện ${mb(d.mem.cur)} MB, đỉnh ${mb(d.mem.peak)} MB · DOM ${d.dom} nút · <img> trong lưới ${d.gridImgs} · dựng thẻ ${d.counts.fill} lần, gỡ ${d.counts.empty} lần`,
     `Lightbox (${L.opens} lượt xem): xem trước p50 ${r0(L.preview.p50)} ms (max ${r0(L.preview.max)}) · 1000px p50 ${r0(L.s1000.p50)} (n=${L.s1000.n}) · bản lớn p50 ${r0(L.sFull.p50)} (n=${L.sFull.n}) · ảnh gốc p50 ${r0(L.orig.p50)} ms, max ${r0(L.orig.max)} (n=${L.orig.n}, ~${mb(L.origBytesTotal)} MB) · lỗi bước nét ${L.fail} · lỗi ảnh gốc ${L.origFail}`,
+    ...(L.b64 && L.b64.n ? [`  ảnh gốc, các bước: đổi base64 p50 ${r0(L.b64.p50)} ms (max ${r0(L.b64.max)}) · giải mã p50 ${r0(L.decode.p50)} ms (max ${r0(L.decode.max)}) (n=${L.decode.n})`] : []),
+    ...(sw.status ? [swLine(sw)] : []),
     `Dựng: chuyển trang p50 ${r0(d.route.p50)} ms (max ${r0(d.route.max)}, ${d.route.n} lần) · thêm hàng ảnh p50 ${r0(d.append.p50)} ms (max ${r0(d.append.max)}, ${d.append.n} lần, ${d.counts.rowsAdded} hàng)`,
     `Ghi chú: Safari không có longtask nên không đo được tác vụ dài; "khi cuộn" = khung hình trong 150 ms sau sự kiện cuộn.`,
   ];
@@ -63,12 +66,12 @@ const st = {
   frames: { all: makeHist(), scroll: makeHist(), gesture: makeHist(), idle: makeHist() }, recent: [], lastScroll: -1e9, gesture: 0,
   imgs: { thumbOk: 0, thumbErr: 0 }, resImg: [], slow2s: 0, js: 0, jsBytes: 0,
   marks: {}, series: { route: [], append: [] }, counts: { fill: 0, empty: 0, rowsAdded: 0 }, mem: { cur: 0, peak: 0 }, dom: 0, gridImgs: 0, lcp: null,
-  lb: { open: null, previewAt: null, opens: 0, preview: [], s1000: [], sFull: [], orig: [], origBytes: [], fail: 0, origFail: 0 },
+  lb: { open: null, previewAt: null, opens: 0, preview: [], s1000: [], sFull: [], orig: [], origBytes: [], b64: [], decode: [], fail: 0, origFail: 0 },
 };
 const reset = () => {
   Object.assign(st, { frames: { all: makeHist(), scroll: makeHist(), gesture: makeHist(), idle: makeHist() }, imgs: { thumbOk: 0, thumbErr: 0 }, resImg: [], slow2s: 0,
     series: { route: [], append: [] }, counts: { fill: 0, empty: 0, rowsAdded: 0 }, mem: { cur: 0, peak: 0 },
-    lb: { open: null, previewAt: null, opens: 0, preview: [], s1000: [], sFull: [], orig: [], origBytes: [], fail: 0, origFail: 0 } });
+    lb: { open: null, previewAt: null, opens: 0, preview: [], s1000: [], sFull: [], orig: [], origBytes: [], b64: [], decode: [], fail: 0, origFail: 0 } });
   st.t0 = performance.now();
 };
 const cap = (arr, v) => { arr.push(v); if (arr.length > 2000) arr.shift(); };
@@ -84,6 +87,8 @@ function sink(type, a, t) {
     else if (a[0] === 'stageFail') L.fail++;
     else if (a[0] === 'orig') cap(L.orig, dt);
     else if (a[0] === 'origBytes') cap(L.origBytes, a[1]);
+    else if (a[0] === 'b64') cap(L.b64, a[1]);
+    else if (a[0] === 'decode') cap(L.decode, a[1]);
     else if (a[0] === 'origFail') L.origFail++;
   }
 }
@@ -113,11 +118,11 @@ async function snapshot() {
   return {
     when: new Date().toLocaleString('vi-VN'), secs: Math.round((performance.now() - st.t0) / 1000), version,
     env: { ua: navigator.userAgent.replace(/^Mozilla\/5\.0 /, '').slice(0, 90), dpr: window.devicePixelRatio, vw: innerWidth, vh: innerHeight, cores: navigator.hardwareConcurrency, touch: matchMedia('(pointer: coarse)').matches,
-      browser: detectBrowser(navigator.userAgent), sw: { supported: 'serviceWorker' in navigator, controlled: !!(navigator.serviceWorker && navigator.serviceWorker.controller) },
+      browser: detectBrowser(navigator.userAgent), sw: { supported: 'serviceWorker' in navigator, controlled: !!(navigator.serviceWorker && navigator.serviceWorker.controller), status: (globalThis.vdSwInfo || {}).status || null },
       standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches), net: c.effectiveType ? `${c.effectiveType}${c.rtt ? ` rtt ${c.rtt}ms` : ''}${c.saveData ? ' tiết kiệm dữ liệu' : ''}` : '' },
     start: { fcp: paint['first-contentful-paint'] ?? null, lcp: st.lcp, dcl: nav.domContentLoadedEventEnd ?? null, load: nav.loadEventEnd || null, firstRoute: st.marks['first-route'] ?? null, libraryReady: st.marks['library-ready'] ?? null, modules: st.js, jsBytes: st.jsBytes },
     frames: st.frames, imgs: st.imgs, res: { img: stat(st.resImg), slow2s: st.slow2s }, mem: st.mem, dom: st.dom, gridImgs: st.gridImgs, counts: st.counts,
-    lb: { opens: L.opens, preview: stat(L.preview), s1000: stat(L.s1000), sFull: stat(L.sFull), orig: stat(L.orig), origBytesTotal: L.origBytes.reduce((a, b) => a + b, 0), fail: L.fail, origFail: L.origFail },
+    lb: { opens: L.opens, preview: stat(L.preview), s1000: stat(L.s1000), sFull: stat(L.sFull), orig: stat(L.orig), b64: stat(L.b64), decode: stat(L.decode), origBytesTotal: L.origBytes.reduce((a, b) => a + b, 0), fail: L.fail, origFail: L.origFail },
     route: stat(st.series.route), append: stat(st.series.append),
   };
 }
@@ -146,7 +151,7 @@ function buildHud() {
   btns.append(
     mkBtn('Sao chép', async () => { await refresh(); const txt = `${last.text}\n\n${last.json}`; try { await navigator.clipboard.writeText(txt); pill.textContent = 'đã chép ✓'; } catch (e) { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); pill.textContent = 'đã chép ✓'; } catch (e2) { prompt('Sao chép báo cáo:', txt); } ta.remove(); } }),
     mkBtn('Gửi', async () => { await refresh(); const txt = `${last.text}\n\n${last.json}`; if (navigator.share) { try { await navigator.share({ title: 'VD Photo perf', text: txt }); } catch (e) { /* người dùng huỷ */ } } else prompt('Sao chép báo cáo:', txt); }),
-    mkBtn('Cập nhật', refresh), mkBtn('Đặt lại', () => { reset(); refresh(); }),
+    mkBtn('Kiểm tra bản mới', async () => { const c = navigator.serviceWorker && navigator.serviceWorker.controller; if (c) c.postMessage({ type: 'check', force: true }); if (!c) { pill.textContent = 'không có SW'; return; } await new Promise((r) => setTimeout(r, 2500)); refresh(); }), mkBtn('Cập nhật', refresh), mkBtn('Đặt lại', () => { reset(); refresh(); }),
     mkBtn('Thu gọn', () => panel.classList.add('perf-hidden')),
     mkBtn('Tắt đo', () => { lsDel('vd_perf'); perfHook.on = false; st.running = false; hud.remove(); style.remove(); }),
   );

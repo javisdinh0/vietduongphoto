@@ -117,3 +117,14 @@ test('không tốn gì với người dùng thường: perf.js chỉ nạp độ
   assert.ok(!read('index.html').includes('perf.js'), 'index.html không preload perf.js');
   assert.match(read('sw.js'), /'perf\.js'/);
 });
+
+test('báo cáo: các bước ảnh gốc (base64, giải mã) và trạng thái service worker (cũ hơn bản đã dựng) chỉ hiện khi có dữ liệu', () => {
+  assert.ok(!P.buildReport(fixture()).text.includes('đổi base64'));
+  assert.ok(!P.buildReport(fixture()).text.includes('Service worker: bản đang dùng'));
+  const d = fixture(); d.lb.b64 = P.stat([120, 200]); d.lb.decode = P.stat([300, 650]);
+  d.env.sw = { supported: true, controlled: true, status: { current: 'vdphoto-shell-b', prev: 'vdphoto-shell-a', checked: 1000, loaded: 'vdphoto-shell-a', stale: true, result: 'updated', now: 1000 + 12 * 60000 } };
+  const t = P.buildReport(d).text;
+  assert.ok(t.includes('đổi base64 p50 120 ms (max 200) · giải mã p50 300 ms (max 650) (n=2)'), t);
+  assert.ok(t.includes('trang này nạp vdphoto-shell-a · TRANG ĐANG CŨ HƠN BẢN ĐÃ DỰNG · kiểm tra cuối 12 phút trước · kết quả kiểm tra thủ công: updated'), t);
+  d.env.sw.status.stale = false; d.env.sw.status.loaded = null; assert.ok(P.buildReport(d).text.includes('không rõ (SW từng bị tắt)'));
+});

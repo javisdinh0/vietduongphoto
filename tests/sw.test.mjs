@@ -43,8 +43,8 @@ const useServer = () => { calls = []; globalThis.fetch = async (input, init = {}
 const reset = () => { stores.clear(); messages.length = 0; claimed = 0; failPath = null; caches.fail = false; now += 3 * 3600 * 1000; setServer('v1'); useServer(); };
 const run = async (type, extra = {}) => { let p; handlers[type]({ waitUntil: (x) => { p = x; }, ...extra }); return p; };
 const install = () => run('install');
-const ask = async (url, { mode = 'no-cors', destination = '', method = 'GET' } = {}) => {
-  const waits = []; let p; handlers.fetch({ request: { method, url, mode, destination }, respondWith: (x) => { p = x; }, waitUntil: (x) => waits.push(x) });
+const ask = async (url, { mode = 'no-cors', destination = '', method = 'GET', clientId } = {}) => {
+  const waits = []; let p; handlers.fetch({ request: { method, url, mode, destination }, resultingClientId: clientId, respondWith: (x) => { p = x; }, waitUntil: (x) => waits.push(x) });
   const res = p ? await p : null; await Promise.all(waits); return res;
 };
 const meta = async (k) => { const m = stores.get('vdphoto-meta'); const r = m && m.get(`https://meta.invalid/${k}`); return r ? r.clone().text() : null; };
@@ -184,4 +184,23 @@ test('thumbnail: CORS bị chặn → tải thường và không lưu', async ()
   reset(); const c = withFetch((r) => { if (r.mode === 'cors') throw new TypeError('Failed to fetch'); return new Response('OPAQUE-OK', { status: 200 }); });
   assert.equal(await (await imgReq()).text(), 'OPAQUE-OK'); assert.deepEqual(c.map((x) => x.mode), ['cors', 'no-cors']);
   await imgReq(); assert.equal(c.length, 4, 'không lưu phản hồi không đọc được trạng thái');
+});
+
+test('trạng thái: trang nạp bản cũ rồi bản mới được dựng mà tin báo bị lỡ → hỏi lại vẫn biết "stale"; bản mới nạp sau thì không stale; "check" có force bỏ qua giới hạn', async () => {
+  reset(); await install(); const v1 = await meta('current');
+  await ask(SCOPE, { mode: 'navigate', clientId: 'tab1' });                       // trang tab1 nạp bản v1
+  const got = []; const src = (id) => ({ id, postMessage: (m) => got.push(m) });
+  await run('message', { data: { type: 'status' }, source: src('tab1') });
+  assert.equal(got.at(-1).type, 'vdphoto-status'); assert.equal(got.at(-1).loaded, v1); assert.equal(got.at(-1).stale, false);
+  stale(); setServer('v2'); await ask(SCOPE, { mode: 'navigate', clientId: 'tab2' });  // tab2 mở lại → SW dựng v2 ở nền
+  const v2 = await meta('current'); assert.notEqual(v2, v1);
+  await run('message', { data: { type: 'status' }, source: src('tab1') });
+  assert.equal(got.at(-1).stale, true, 'tab1 vẫn chạy v1'); assert.equal(got.at(-1).current, v2);
+  await run('message', { data: { type: 'status' }, source: src('tab2') }); assert.equal(got.at(-1).loaded, v1, 'tab2 được phục vụ v1 (nạp ngay từ cache) rồi mới cập nhật nền');
+  await run('message', { data: { type: 'status' }, source: src('lạ') }); assert.equal(got.at(-1).loaded, null); assert.equal(got.at(-1).stale, false, 'không biết thì không kết luận');
+  // force: bỏ qua giới hạn 10 phút, trả kết quả
+  setServer('v3'); await run('message', { data: { type: 'check' }, source: src('tab1') }); assert.equal(await meta('current'), v2, 'không force: bị giới hạn tần suất');
+  await run('message', { data: { type: 'check', force: true }, source: src('tab1') });
+  assert.notEqual(await meta('current'), v2); assert.equal(got.at(-1).result, 'updated');
+  await run('message', { data: { type: 'check', force: true }, source: src('tab1') }); assert.equal(got.at(-1).result, 'same');
 });

@@ -55,13 +55,20 @@ function cachePut(id, blob) {
 function applyOriginal(p, blob, still) {
   const asData = COARSE() && blob.size <= 40e6; perfLb('origBytes', blob.size);
   return (async () => {
+    const t0 = performance.now();
     const url = asData ? await toDataUrl(blob) : URL.createObjectURL(blob);
-    if (!still()) { if (!asData) URL.revokeObjectURL(url); return; }
+    perfLb('b64', performance.now() - t0);
     const free = () => { if (!asData) URL.revokeObjectURL(url); };
-    const probe = new Image();
-    probe.onload = () => { if (!still()) { free(); return; } if (!asData) LB.orig.url = url; lbImg().src = url; lbImg().dataset.quality = 'original'; perfLb('orig'); setQuality('ready', `${t('origReady')}${mb(p.size)}`); offerShare(p, blob); };
-    probe.onerror = () => { free(); perfLb('origFail'); if (still()) setQuality('fail', t('origFail')); };
-    probe.src = url;
+    if (!still()) { free(); return; }
+    // Giải mã ở luồng nền (decode()) trước khi gắn vào ảnh đang hiện: không chặn luồng chính, và ảnh lỗi thì giữ nguyên bản xem trước.
+    const probe = new Image(); probe.decoding = 'async'; probe.src = url;
+    const t1 = performance.now();
+    try { await (probe.decode ? probe.decode() : new Promise((res, rej) => { probe.onload = res; probe.onerror = rej; })); }
+    catch (e) { free(); perfLb('origFail'); if (still()) setQuality('fail', t('origFail')); return; }
+    perfLb('decode', performance.now() - t1);
+    if (!still()) { free(); return; }
+    if (!asData) LB.orig.url = url;
+    lbImg().src = url; lbImg().dataset.quality = 'original'; perfLb('orig'); setQuality('ready', `${t('origReady')}${mb(p.size)}`); offerShare(p, blob);
   })();
 }
 // manual=true: người dùng chạm nhãn để tải. Tự động bỏ qua khi đang trình chiếu (dùng bản xem trước) hoặc bật Tiết kiệm dữ liệu.

@@ -68,12 +68,12 @@ self.addEventListener('activate', (e) => {
 
 // ---- kiểm tra bản mới (giới hạn tần suất, không chạy song song)
 let checking = null;
-function maybeUpdate() {
+function maybeUpdate(force = false) {
   if (checking) return checking;
   checking = (async () => {
     try {
       const last = +(await metaGet('checked')) || 0;
-      if (Date.now() - last < CHECK_MS) return 'throttled';
+      if (!force && Date.now() - last < CHECK_MS) return 'throttled';
       await metaSet('checked', Date.now());
       let shell; try { shell = await fetchShell('no-cache'); } catch (err) { return 'error'; } // mất mạng / lỗi tạm: giữ nguyên bản hiện tại
       const cur = await metaGet('current');
@@ -87,7 +87,20 @@ function maybeUpdate() {
   })();
   return checking;
 }
-self.addEventListener('message', (e) => { if (e.data && e.data.type === 'check') e.waitUntil(maybeUpdate()); });
+// Trang nào đang chạy bản khung nào (chỉ trong RAM; mất khi SW bị hệ điều hành tắt → khi đó không kết luận gì).
+const served = new Map();
+const rememberServed = (id, name) => { if (!id || !name) return; served.delete(id); served.set(id, name); while (served.size > 30) served.delete(served.keys().next().value); };
+// Trả lời trang: bản đang dùng, bản trang này đã nạp, lần kiểm tra cuối; stale = trang chạy bản cũ hơn bản đã dựng (thông báo "có bản mới" từ SW có thể bị lỡ nếu trang chưa sẵn sàng nhận).
+async function reply(e, result) {
+  const current = await metaGet('current'); const loaded = served.get(e.source && e.source.id) || null;
+  const msg = { type: 'vdphoto-status', current, prev: await metaGet('prev') || '', checked: +(await metaGet('checked')) || 0, loaded, stale: !!(loaded && current && loaded !== current), result: result || null, now: Date.now() };
+  if (e.source) e.source.postMessage(msg);
+}
+self.addEventListener('message', (e) => {
+  const d = e.data || {};
+  if (d.type === 'check') e.waitUntil(maybeUpdate(!!d.force).then((r) => (d.force || d.reply ? reply(e, r) : null)).catch(() => {}));
+  else if (d.type === 'status') e.waitUntil(reply(e).catch(() => {}));
+});
 
 async function trim(cache) {
   const keys = await cache.keys();
@@ -118,6 +131,7 @@ self.addEventListener('fetch', (e) => {
     e.respondWith((async () => {
       try {
         const name = await metaGet('current');
+        if (req.mode === 'navigate') rememberServed(e.resultingClientId || e.clientId, name);
         const hit = name && await (await caches.open(name)).match(keyOf(rel));
         if (rel === 'index.html' || req.mode === 'navigate') e.waitUntil(maybeUpdate().catch(() => {}));
         if (hit) return hit;
