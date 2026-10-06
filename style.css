@@ -1,5 +1,6 @@
 /* VietDuong Photo — Neumorphism (Soft UI): một bề mặt xám lạnh #E0E5EC, mọi cạnh do bóng đôi (sáng trên-trái, tối dưới-phải) tạo ra; không viền. Lightbox giữ nền tối để ảnh nổi bật. */
 :root {
+    color-scheme: light;
     --bg: #E0E5EC; --card: #E0E5EC; --text: #3D4852; --muted: #6B7280; --primary: #6C63FF; --primary-h: #8B84FF; --on-primary: #fff; --accent2: #38B2AC;
     --border: transparent; --line: rgba(163,177,198,.55); --chip: #D5DBE4; --err-bg: #EBD9DE; --err: #A12A2A; --heart: #6C63FF;
     --sh-ext: 9px 9px 16px rgba(163,177,198,.6), -9px -9px 16px rgba(255,255,255,.5);
