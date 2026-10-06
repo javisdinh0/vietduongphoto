@@ -31,13 +31,10 @@ test('mọi biểu tượng trong icons.css đều vẽ ra hình thật (có né
 
 test('biểu tượng ở tiêu đề: có mask, có kích thước, màu theo chữ của phần tử cha', async ({ page }) => {
   await page.goto('/?demo=1');
-  await expect(page.locator('#themeBtn')).toBeVisible();
-  const r = await page.evaluate(() => { const i = document.querySelector('#themeBtn i'); const cs = getComputedStyle(i); const p = getComputedStyle(i.parentElement); return { mask: cs.maskImage || cs.webkitMaskImage, w: i.getBoundingClientRect().width, h: i.getBoundingClientRect().height, bg: cs.backgroundColor, color: p.color }; });
+  await expect(page.locator('#homeLink')).toBeVisible();
+  const r = await page.evaluate(() => { const i = document.querySelector('#homeLink i'); const cs = getComputedStyle(i); const p = getComputedStyle(i.parentElement); return { mask: cs.maskImage || cs.webkitMaskImage, w: i.getBoundingClientRect().width, h: i.getBoundingClientRect().height, bg: cs.backgroundColor, color: p.color }; });
   expect(r.mask).toContain('data:image/svg+xml'); expect(r.w).toBeGreaterThan(8); expect(r.h).toBeGreaterThan(8);
-  expect(r.bg).toBe(r.color);                                     // nền = currentColor của cha → biểu tượng đúng màu chữ, cả sáng lẫn tối
-  await page.locator('#themeBtn').click();
-  const r2 = await page.evaluate(() => { const i = document.querySelector('#themeBtn i'); return { mask: getComputedStyle(i).maskImage, bg: getComputedStyle(i).backgroundColor, color: getComputedStyle(i.parentElement).color }; });
-  expect(r2.bg).toBe(r2.color); expect(r2.mask).not.toBe(r.mask);   // đổi sáng/tối → mặt trăng ↔ mặt trời
+  expect(r.bg).toBe(r.color);                                     // nền = currentColor của cha → biểu tượng đúng màu chữ
 });
 
 test('trái tim trong lightbox: viền → đặc khi thích (đổi lớp far→fas đổi hình)', async ({ page }) => {

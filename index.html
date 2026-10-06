@@ -9,10 +9,10 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <meta name="apple-mobile-web-app-title" content="VD Photo">
     <link rel="manifest" href="manifest.webmanifest">
-    <meta name="theme-color" content="#b4533a">
+    <meta name="theme-color" content="#E0E5EC">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,500;1,500&family=Be+Vietnam+Pro:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=DM+Sans:wght@400;500;700&display=swap">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="icons.css"> <!-- biểu tượng SVG tự chứa thay Font Awesome (sinh bởi scripts/make-icons-css.mjs) -->
     <!-- Tải song song toàn bộ module (không có thì trình duyệt chỉ biết cần module nào sau khi tải xong module cha: chuỗi import sâu 9 tầng = 9 vòng chờ mạng).
@@ -38,14 +38,6 @@
     <link rel="modulepreload" href="zoom.js">
     <link rel="modulepreload" href="zip.js">
     <link rel="modulepreload" href="pwa.js">
-    <script>
-        (function () {
-            var saved = null;
-            try { saved = localStorage.getItem('vdphoto_theme') || localStorage.getItem('ividlab-theme'); } catch (e) {}
-            if (!saved) saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', saved);
-        })();
-    </script>
 </head>
 <body>
     <header>
@@ -54,7 +46,6 @@
             <div class="header-actions">
                 <a class="icon-btn" href="https://ividlab.com" id="homeLink" title="ividlab.com"><i class="fas fa-house"></i></a>
                 <button id="langBtn" class="icon-btn txt" title="Language">VI</button>
-                <button id="themeBtn" class="icon-btn" title="Theme"><i class="fas fa-moon"></i></button>
                 <button id="loginBtn" class="btn btn-primary btn-sm hidden"><i class="fab fa-google"></i> <span data-i18n="login">Đăng nhập</span></button>
                 <button id="logoutBtn" class="btn btn-sm hidden"><i class="fas fa-sign-out-alt"></i> <span data-i18n="logout">Đăng xuất</span></button>
                 <button id="settingsBtn" class="icon-btn hidden" title="Cài đặt"><i class="fas fa-cog"></i></button>

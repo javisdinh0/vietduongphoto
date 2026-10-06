@@ -4,7 +4,7 @@ import { S, LB } from './state.js';
 import { cclear } from './cache.js';
 import { openSettings, saveSettings } from './settings.js';
 import { confirmAlbum, openAlbumModal, removeFromAlbum, setCover } from './albums.js';
-import { setLang, getLang, applyI18n, applyTheme, t } from './i18n.js';
+import { setLang, getLang, applyI18n, t } from './i18n.js';
 import { fillYears, saveFilters } from './gallery.js';
 import { route } from './router.js';
 import { loadLibrary } from './library.js';
@@ -27,7 +27,6 @@ function bind() {
   $('#closeAlbum').addEventListener('click', () => show($('#albumModal'), false)); $('#albumOk').addEventListener('click', confirmAlbum);
   window.addEventListener('click', (e) => { if (e.target === $('#settingsModal')) show($('#settingsModal'), false); if (e.target === $('#albumModal')) show($('#albumModal'), false); });
   $('#langBtn').addEventListener('click', () => { setLang(getLang() === 'vi' ? 'en' : 'vi'); applyI18n(); if (S.loaded) { fillYears(); route(); } });
-  $('#themeBtn').addEventListener('click', () => applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
   let qt; $('#searchInput').addEventListener('input', (e) => { clearTimeout(qt); qt = setTimeout(() => { S.filters.q = e.target.value; saveFilters(); route(); }, 200); });
   $('#yearSel').addEventListener('change', (e) => { S.filters.year = e.target.value; saveFilters(); route(); });
   $('#rawOnly').addEventListener('change', (e) => { S.filters.raw = e.target.checked; saveFilters(); route(); });
@@ -70,7 +69,7 @@ try {
 if (QS.get('perf') === '0') lsDel('vd_perf'); else if (QS.get('perf') === '1') lsSet('vd_perf', '1');
 if (lsGet('vd_perf') === '1') { perfHook.on = true; import('./perf.js').then((m) => m.initPerf()).catch(() => { perfHook.on = false; }); }
 initPwa();
-applyI18n(); applyTheme(document.documentElement.getAttribute('data-theme') || 'light'); bind();
+applyI18n(); bind();
 const pub = publicShareRequest(); // link chia sẻ công khai: không đăng nhập
 if (pub) startPublicShare(pub); else initAuth();
 window.__vd = S; window.__lb = LB; // phục vụ debug/test
