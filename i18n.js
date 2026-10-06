@@ -54,9 +54,3 @@ export function applyI18n() {
   $('#langBtn').textContent = lang.toUpperCase();
 }
 
-// ============================ Theme ============================
-export function applyTheme(th) {
-  document.documentElement.setAttribute('data-theme', th);
-  lsSet('vdphoto_theme', th);
-  $('#themeBtn').innerHTML = th === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
-}

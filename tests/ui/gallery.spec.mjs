@@ -130,15 +130,12 @@ test('tiếng Anh: số ít/số nhiều (1 photo, 14 photos)', async ({ page })
   await expect(page.locator('.day-count').first()).toHaveText(/ · 1 photo$/);
 });
 
-test('đổi ngôn ngữ và theme', async ({ page }) => {
+test('đổi ngôn ngữ', async ({ page }) => {
   await open(page);
   await page.locator('#langBtn').click();
   await expect(page.locator('#langBtn')).toHaveText('EN');
   await expect(page.locator('.album-name').first()).toHaveText('All photos');
   expect(await page.evaluate(() => localStorage.getItem('vdphoto_lang'))).toBe('en');
-  const before = await page.evaluate(() => document.documentElement.dataset.theme);
-  await page.locator('#themeBtn').click();
-  expect(await page.evaluate(() => document.documentElement.dataset.theme)).not.toBe(before);
 });
 
 test('nhiều ảnh (600): virtual recycling giữ số <img> thấp', async ({ page }) => {

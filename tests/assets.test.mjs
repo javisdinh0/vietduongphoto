@@ -34,7 +34,7 @@ test('manifest: mỗi biểu tượng tồn tại, đúng kích thước khai b�
   }
   assert.ok(purposes.has('any') && purposes.has('maskable'));
   assert.ok(m.icons.some((i) => i.sizes === '192x192') && m.icons.some((i) => i.sizes === '512x512'), 'có 192 và 512');
-  assert.equal(m.theme_color, '#b4533a');
+  assert.equal(m.theme_color, '#E0E5EC');
 });
 
 test('apple-touch-icon: 180x180, không trong suốt (iOS tô đen vùng trong suốt), có thẻ link trong index.html', () => {
@@ -48,11 +48,9 @@ test('phông chữ: chỉ nạp các độ đậm mà CSS thật sự dùng', ()
   const url = /fonts\.googleapis\.com\/css2\?([^"]+)"/.exec(html)[1].replace(/&amp;/g, '&');
   const css = read('style.css') + read('index.html');
   const used = new Set([...css.matchAll(/font-weight:\s*(\d{3})/g)].map((m) => +m[1]));
-  const bvp = /Be\+Vietnam\+Pro:wght@([\d;]+)/.exec(url)[1].split(';').map(Number);
-  for (const w of bvp) assert.ok(used.has(w), `Be Vietnam Pro ${w} có dùng`);
-  assert.ok(!bvp.includes(700), 'không còn nạp độ đậm 700 không dùng');
-  const nr = /Newsreader:ital,wght@([\d,;]+)/.exec(url)[1].split(';');
-  assert.deepEqual(nr, ['0,500', '1,500'], 'Newsreader chỉ dùng độ đậm 500 (thường + nghiêng)');
+  const fam = (name) => new RegExp(`${name}:wght@([\\d;]+)`).exec(url)[1].split(';').map(Number);
+  for (const w of [...fam('Plus\\+Jakarta\\+Sans'), ...fam('DM\\+Sans')]) assert.ok(used.has(w), `độ đậm ${w} có dùng`);
+  assert.ok(!/Newsreader|Be\+Vietnam/.test(url), 'không còn nạp phông của theme cũ');
   assert.match(url, /display=swap/);
 });
 

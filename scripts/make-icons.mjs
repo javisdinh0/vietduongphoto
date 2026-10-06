@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import { chromium } from '@playwright/test';
 
-const COLOR = '#b4533a';
+const COLOR = '#6C63FF';
 const GLYPH = '<path d="M24 38h11l5-8h20l5 8h11a3 3 0 0 1 3 3v31a3 3 0 0 1-3 3H24a3 3 0 0 1-3-3V41a3 3 0 0 1 3-3z" fill="none" stroke="#fff" stroke-width="6" stroke-linejoin="round"/><circle cx="50" cy="56" r="12" fill="none" stroke="#fff" stroke-width="6"/>';
 const rounded = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="24" fill="${COLOR}"/>${GLYPH}</svg>`;
 const bleed = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${COLOR}"/><g transform="translate(50 50) scale(.75) translate(-50 -52)">${GLYPH}</g></svg>`;

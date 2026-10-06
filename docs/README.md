@@ -13,7 +13,7 @@ Thư viện ảnh đọc từ một thư mục Google Drive, chạy hoàn toàn 
 - Tìm theo tên, lọc năm / có RAW / yêu thích (yêu thích lưu localStorage).
 - Chọn nhiều → tải **zip** (store, có CRC, tuỳ chọn kèm RAW).
 - Cache cây thư mục + danh sách file trong IndexedDB 20 phút (xoá khi đăng xuất / đổi cấu hình).
-- Theme + ngôn ngữ lưu localStorage với key `vdphoto_theme`, `vdphoto_lang` (vẫn đọc key cũ `ividlab-theme`, `ividlab-lang` làm giá trị dự phòng, không còn ghi vào). Nút nhà trong `index.html` vẫn trỏ `ividlab.com`.
+- Ngôn ngữ lưu localStorage với key `vdphoto_lang` (vẫn đọc key cũ `ividlab-theme`, `ividlab-lang` làm giá trị dự phòng, không còn ghi vào). Nút nhà trong `index.html` vẫn trỏ `ividlab.com`.
 
 ## Firestore rules
 [`firestore.rules`](../firestore.rules) ở gốc repo là **bản đầy đủ của dự án Firebase `ividlab-rficonsole`** (dùng chung với site khác như RFI Console); phần của VietDuong Photo là khối `photoAlbums` + `photoRequests` (admin = owner trong `config/owners`). Muốn có hiệu lực phải dán toàn bộ vào Firebase Console > Firestore > Rules > Publish (hoặc `firebase deploy --only firestore:rules`), không thì album ảo/yêu cầu quyền báo "không lưu được". Quyền: người đăng nhập (email đã xác minh) đọc album; chỉ owner ghi album (tên ≤ 200 ký tự, chỉ các trường `name, fileIds, cover, createdAt`) và đọc/xoá yêu cầu; mỗi người chỉ gửi được yêu cầu cho chính email mình. Lưu ý: app coi `dinhvietdung.vn@gmail.com` là admin dự phòng ở phía client, nhưng rules chỉ tin `config/owners` — email đó phải có trong `config/owners.emails` (chữ thường) thì mới ghi được.
@@ -149,7 +149,7 @@ Trước đây chỉ có chạm một lần để phóng cố định 2,5x và l
 - **`modulepreload` cho cả 20 module** trong `index.html`: trước đây chuỗi `import` sâu 9 tầng nên trình duyệt chỉ biết cần module nào sau khi tải xong module cha. Thời gian tới lúc thấy album: trung vị **1834 ms → 1605 ms (−12%)** với máy chủ cục bộ HTTP/1.1; trên GitHub Pages (HTTP/2) có thể lợi hơn nhưng chưa đo. **Thêm/bớt `import` thì phải cập nhật các thẻ `modulepreload`** — `tests/assets.test.mjs` so khớp với đồ thị import thật và sẽ fail nếu lệch.
 - **Bỏ nền mờ 32px của thẻ ảnh:** trước đây mỗi thẻ gửi 2 yêu cầu ảnh (32px + ảnh chính); đo được 14 yêu cầu `=s32` thừa cho 14 ảnh. Nay một yêu cầu/thẻ, giảm nguy cơ Google trả 429. Chỗ giữ chỗ là ô màu `--chip`.
 - **Ảnh bìa 4 album đầu tải ngay** (`loading="eager"`), 2 ảnh đầu `fetchpriority="high"`; các ảnh còn lại vẫn lazy.
-- **Phông chữ:** chỉ nạp độ đậm thực dùng — Newsreader 500 (thường + nghiêng), Be Vietnam Pro 400/500/600 (bỏ 700). Test kiểm tra danh sách này khớp với `font-weight` trong CSS.
+- **Phông chữ:** chỉ nạp độ đậm thực dùng — Plus Jakarta Sans 500/600/700/800, DM Sans 400/500/700. Test kiểm tra danh sách này khớp với `font-weight` trong CSS.
 - **PWA/iPhone:** `apple-touch-icon.png` (180x180, tràn nền, không trong suốt vì iOS tô đen vùng trong suốt), `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` và `manifest.webmanifest` khai báo đủ. Sinh lại bằng `node scripts/make-icons.mjs` khi đổi thiết kế biểu tượng.
 - Chưa làm (đã đề xuất): thay Font Awesome bằng SVG tự chứa (38 biểu tượng), service worker lưu sẵn khung ứng dụng + cập nhật ngầm, `?perf=1` đo trên điện thoại thật.
 
